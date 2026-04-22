@@ -18,8 +18,6 @@ import StatsCard from '@/components/StatsCard';
 import BarChart from '@/components/BarChart';
 import { useRouter } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
 interface Stats {
   summary: {

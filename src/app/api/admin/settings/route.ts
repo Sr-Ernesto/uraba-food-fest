@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString(),
     }));
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('settings')
       .upsert(updates, { onConflict: 'key' });
 

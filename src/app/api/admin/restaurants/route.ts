@@ -41,16 +41,16 @@ export async function PATCH(request: NextRequest) {
     const { id, name, description, instagram, image_url } = body;
     const supabase = getSupabase();
 
-    const updateData: any = {};
+    const updateData: Record<string, any> = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
     if (instagram !== undefined) updateData.instagram = instagram;
     if (image_url !== undefined) updateData.image_url = image_url;
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('restaurants')
       .update(updateData)
-      .eq('id', id)
+      .eq('id', Number(id))
       .select()
       .single();
 

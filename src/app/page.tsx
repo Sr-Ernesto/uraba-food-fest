@@ -7,8 +7,6 @@ import RestaurantCard from '@/components/RestaurantCard';
 import VoteModal from '@/components/VoteModal';
 import Image from 'next/image';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
 interface Restaurant {
   id: number;
