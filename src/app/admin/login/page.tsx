@@ -5,6 +5,9 @@ import { motion } from 'framer-motion';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
