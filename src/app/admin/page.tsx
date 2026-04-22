@@ -14,6 +14,7 @@ const InstagramIcon = ({ size = 16, className = '' }: { size?: number; className
     <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none" />
   </svg>
 );
+import ImageDropZone from '@/components/ImageDropZone';
 import StatsCard from '@/components/StatsCard';
 import BarChart from '@/components/BarChart';
 import { useRouter } from 'next/navigation';
@@ -180,6 +181,38 @@ export default function AdminPage() {
     finally { setUploadingBurger(null); }
   };
 
+  // Upload helpers for ImageDropZone (take File, return URL)
+  const uploadRestaurantImage = (restaurantId: number, slug: string) => async (file: File): Promise<string | null> => {
+    if (!file.size) return null; // empty file = remove
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', 'restaurant');
+    formData.append('slug', slug);
+    const res = await fetch('/api/admin/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!data.url) return null;
+    await fetch('/api/admin/restaurants', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: restaurantId, image_url: data.url }),
+    });
+    fetchStats();
+    return data.url;
+  };
+
+  const uploadLogoImage = async (file: File): Promise<string | null> => {
+    if (!file.size) return null;
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', 'logo');
+    const res = await fetch('/api/admin/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.url) {
+      setSettingsForm(prev => ({ ...prev, logo_url: data.url }));
+    }
+    return data.url || null;
+  };
+
   if (loading || !stats) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
@@ -336,9 +369,13 @@ export default function AdminPage() {
                             placeholder="@usuario" className="w-full px-3 py-2 bg-surface-2 border border-surface-3 rounded-lg text-sm focus:outline-none focus:border-brand" />
                         </div>
                         <div>
-                          <label className="text-xs text-gray-400 mb-1 block flex items-center gap-1"><ImageIcon size={12} /> URL de imagen</label>
-                          <input value={editForm.image_url} onChange={(e) => setEditForm({ ...editForm, image_url: e.target.value })}
-                            placeholder="https://ejemplo.com/burger.jpg" className="w-full px-3 py-2 bg-surface-2 border border-surface-3 rounded-lg text-sm focus:outline-none focus:border-brand" />
+                          <ImageDropZone
+                            label="Foto del restaurante"
+                            currentUrl={editForm.image_url}
+                            onUpload={uploadRestaurantImage(editingId!, stats.restaurantStats.find(r => r.id === editingId)?.slug || '')}
+                            size="md"
+                            hint="Arrastra la foto de la hamburguesa · JPG, PNG, WebP · Máx 5MB"
+                          />
                         </div>
                         <div className="flex gap-2">
                           <button onClick={saveEdit} disabled={saving}
@@ -492,21 +529,12 @@ export default function AdminPage() {
                 {/* Logo */}
                 <div className="bg-surface-1 border border-surface-3 rounded-2xl p-5">
                   <h3 className="text-sm font-semibold text-gray-300 mb-4">Logo del Evento</h3>
-                  <div className="flex items-center gap-4">
-                    <div className="w-20 h-20 rounded-xl bg-surface-2 flex items-center justify-center overflow-hidden">
-                      {settingsForm.logo_url ? (
-                        <img src={settingsForm.logo_url} alt="Logo" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-3xl">🍔</span>
-                      )}
-                    </div>
-                    <label className="flex items-center gap-2 px-4 py-2 bg-surface-2 hover:bg-surface-3 rounded-xl text-sm cursor-pointer transition-colors">
-                      <Upload size={16} />
-                      {uploadingLogo ? 'Subiendo...' : 'Subir logo'}
-                      <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={uploadingLogo} />
-                    </label>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">JPG, PNG o WebP. Máximo 5MB. Recomendado: 400x400px</p>
+                  <ImageDropZone
+                    currentUrl={settingsForm.logo_url}
+                    onUpload={uploadLogoImage}
+                    size="md"
+                    hint="Logo del evento · JPG, PNG, WebP · Máx 5MB · Recomendado 400x400"
+                  />
                 </div>
 
                 {/* Nombre y tagline */}
