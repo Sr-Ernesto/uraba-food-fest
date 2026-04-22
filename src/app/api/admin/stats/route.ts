@@ -28,47 +28,114 @@ export async function GET() {
       ? Math.round((ratingsData.reduce((sum: number, v: any) => sum + v.rating, 0) / ratingsData.length) * 10) / 10
       : 0;
 
-    // Votes by restaurant
-    const { data: restaurantStats } = await supabase
+    // Restaurant stats with votes
+    const { data: restaurants } = await supabase
       .from('restaurants')
       .select(`
-        id, name, slug,
-        votes ( id, rating )
+        id, name, slug, instagram, image_url,
+        votes ( id, rating, whatsapp, nombre, voted_at )
       `);
 
-    const ranking = (restaurantStats || [])
-      .map((r: any) => ({
+    const restaurantStats = (restaurants || []).map((r: any) => {
+      const votes = r.votes || [];
+      const avg = votes.length > 0
+        ? Math.round((votes.reduce((s: number, v: any) => s + v.rating, 0) / votes.length) * 10) / 10
+        : null;
+      return {
         id: r.id,
         name: r.name,
         slug: r.slug,
-        vote_count: r.votes?.length || 0,
-        avg_rating: r.votes && r.votes.length > 0
-          ? Math.round((r.votes.reduce((sum: number, v: any) => sum + v.rating, 0) / r.votes.length) * 10) / 10
-          : null,
-      }))
-      .sort((a: any, b: any) => b.vote_count - a.vote_count || (b.avg_rating || 0) - (a.avg_rating || 0));
+        instagram: r.instagram,
+        image_url: r.image_url,
+        total_votes: votes.length,
+        avg_rating: avg,
+        min_rating: votes.length > 0 ? Math.min(...votes.map((v: any) => v.rating)) : 0,
+        max_rating: votes.length > 0 ? Math.max(...votes.map((v: any) => v.rating)) : 0,
+      };
+    }).sort((a: any, b: any) => b.total_votes - a.total_votes || (b.avg_rating || 0) - (a.avg_rating || 0));
 
-    // Votes by hour (last 24h)
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data: recentVotes } = await supabase
+    // All votes for recent and charts
+    const { data: allVotes } = await supabase
       .from('votes')
-      .select('voted_at')
-      .gte('voted_at', twentyFourHoursAgo);
+      .select('id, nombre, whatsapp, rating, voted_at, restaurant_id')
+      .order('voted_at', { ascending: false });
 
-    const votesByHour: Record<string, number> = {};
-    (recentVotes || []).forEach((v: any) => {
-      const hour = new Date(v.voted_at).toLocaleTimeString('es-CO', { hour: '2-digit', hour12: false });
-      votesByHour[hour] = (votesByHour[hour] || 0) + 1;
+    // Recent votes (last 50)
+    const recentVotes = (allVotes || []).slice(0, 50).map((v: any) => {
+      const restaurant = restaurants?.find((r: any) => r.id === v.restaurant_id);
+      return {
+        id: v.id,
+        nombre: v.nombre,
+        whatsapp: v.whatsapp,
+        rating: v.rating,
+        voted_at: v.voted_at,
+        restaurant_name: restaurant?.name || 'Desconocido',
+      };
     });
 
+    // Top voters
+    const voterMap: Record<string, { nombre: string; whatsapp: string; votes: number; totalRating: number }> = {};
+    (allVotes || []).forEach((v: any) => {
+      const key = v.whatsapp;
+      if (!voterMap[key]) {
+        voterMap[key] = { nombre: v.nombre, whatsapp: v.whatsapp, votes: 0, totalRating: 0 };
+      }
+      voterMap[key].votes++;
+      voterMap[key].totalRating += v.rating;
+    });
+    const topVoters = Object.values(voterMap)
+      .map(v => ({
+        nombre: v.nombre,
+        whatsapp: v.whatsapp,
+        votes_count: v.votes,
+        avg_rating: Math.round((v.totalRating / v.votes) * 10) / 10,
+      }))
+      .sort((a, b) => b.votes_count - a.votes_count);
+
+    // Rating distribution
+    const ratingDist: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    (allVotes || []).forEach((v: any) => {
+      ratingDist[v.rating] = (ratingDist[v.rating] || 0) + 1;
+    });
+    const ratingDistribution = Object.entries(ratingDist)
+      .map(([rating, count]) => ({ rating: Number(rating), count }))
+      .sort((a, b) => a.rating - b.rating);
+
+    // Votes by day (last 30 days)
+    const dayMap: Record<string, number> = {};
+    (allVotes || []).forEach((v: any) => {
+      const date = v.voted_at?.split('T')[0] || 'unknown';
+      dayMap[date] = (dayMap[date] || 0) + 1;
+    });
+    const votesByDay = Object.entries(dayMap)
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    // Votes by hour
+    const hourMap: Record<string, number> = {};
+    (allVotes || []).forEach((v: any) => {
+      if (v.voted_at) {
+        const hour = new Date(v.voted_at).toLocaleTimeString('es-CO', { hour: '2-digit', hour12: false });
+        hourMap[hour] = (hourMap[hour] || 0) + 1;
+      }
+    });
+    const votesByHour = Object.entries(hourMap)
+      .map(([hour, count]) => ({ hour, count }))
+      .sort((a, b) => a.hour.localeCompare(b.hour));
+
     return NextResponse.json({
-      data: {
+      summary: {
         totalVotes: totalVotes || 0,
         uniqueVoters,
         avgRating,
-        ranking,
-        votesByHour,
-      }
+        totalRestaurants: restaurants?.length || 0,
+      },
+      restaurantStats,
+      votesByHour,
+      ratingDistribution,
+      votesByDay,
+      recentVotes,
+      topVoters,
     });
   } catch (error) {
     console.error('Error:', error);
