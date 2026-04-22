@@ -7,6 +7,11 @@ const ADMIN_API_PATH = '/api/admin';
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Allow login page without auth
+  if (pathname === '/admin/login') {
+    return NextResponse.next();
+  }
+
   // Only protect /admin and /api/admin routes
   if (!pathname.startsWith(ADMIN_PATH) && !pathname.startsWith(ADMIN_API_PATH)) {
     return NextResponse.next();
