@@ -42,7 +42,7 @@ export async function GET() {
       ultimo_voto: v.lastVote,
     }));
 
-    voters.sort((a: any, b: any) => b.ultimo_voto - a.ultimo_voto);
+    voters.sort((a: any, b: any) => b.ultimo_voto.localeCompare(a.ultimo_voto));
 
     const csv = 'Nombre,WhatsApp,Restaurantes Votados,Rating Promedio,Primer Voto,Último Voto\n' +
       voters.map((v: any) =>

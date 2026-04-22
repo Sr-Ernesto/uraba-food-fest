@@ -12,7 +12,9 @@ export async function GET(
   try {
     const { id } = await params;
     const supabase = getSupabase();
-    const baseUrl = request.nextUrl.origin;
+    // Use COOLIFY_URL env or fall back to request host header
+    const baseUrl = process.env.COOLIFY_URL
+      || `https://${request.headers.get('host') || 'urabafoodfest.com'}`;
 
     let query = supabase.from('restaurants').select('*');
     

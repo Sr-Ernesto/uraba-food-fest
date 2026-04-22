@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (existingVote) {
-      return NextResponse.json({ error: 'Ya votaste por este restaurante' }, { status: 409 });
+      return NextResponse.json({ error: 'Ya votaste por este restaurante', code: 'ALREADY_VOTED' }, { status: 409 });
     }
 
     // Rate limiting: check for too many votes from same IP in last hour
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       if (error.code === '23505') { // unique constraint
-        return NextResponse.json({ error: 'Ya votaste por este restaurante' }, { status: 409 });
+        return NextResponse.json({ error: 'Ya votaste por este restaurante', code: 'ALREADY_VOTED' }, { status: 409 });
       }
       throw error;
     }

@@ -35,6 +35,11 @@ export async function GET() {
   }
 }
 
+export async function PUT(request: NextRequest) {
+  // Alias for PATCH — admin page sends PUT
+  return PATCH(request);
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();

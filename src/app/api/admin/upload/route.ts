@@ -1,10 +1,11 @@
 // src/app/api/admin/upload/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
+import { getSupabase } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+const BUCKET = 'uraba-uploads';
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,26 +31,37 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Create uploads directory
-    const uploadDir = type === 'logo'
-      ? path.join(process.cwd(), 'public', 'uploads')
-      : path.join(process.cwd(), 'public', 'uploads', 'restaurants');
-    await mkdir(uploadDir, { recursive: true });
+    const supabase = getSupabase();
+
+    // Ensure bucket exists
+    const { data: buckets } = await supabase.storage.listBuckets();
+    if (!buckets?.find((b: any) => b.name === BUCKET)) {
+      await supabase.storage.createBucket(BUCKET, { public: true });
+    }
 
     // Generate filename
     const ext = file.name.split('.').pop() || 'jpg';
     const filename = type === 'logo'
       ? `logo.${ext}`
-      : `${formData.get('slug') || Date.now()}.${ext}`;
+      : `restaurants/${formData.get('slug') || Date.now()}.${ext}`;
 
-    const filepath = path.join(uploadDir, filename);
-    await writeFile(filepath, buffer);
+    // Upload to Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET)
+      .upload(filename, buffer, {
+        contentType: file.type,
+        upsert: true,
+      });
 
-    const url = type === 'logo'
-      ? `/uploads/${filename}`
-      : `/uploads/restaurants/${filename}`;
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      return NextResponse.json({ error: 'Error al subir imagen' }, { status: 500 });
+    }
 
-    return NextResponse.json({ url, message: 'Imagen subida correctamente' });
+    // Get public URL
+    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(filename);
+
+    return NextResponse.json({ url: urlData.publicUrl, message: 'Imagen subida correctamente' });
   } catch (error) {
     console.error('Upload error:', error);
     return NextResponse.json({ error: 'Error al subir imagen' }, { status: 500 });
