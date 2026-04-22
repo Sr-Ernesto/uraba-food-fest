@@ -1,58 +1,61 @@
 // src/app/api/admin/restaurants/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { getSupabase } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// GET all restaurants with vote counts
 export async function GET() {
   try {
-    const restaurants = db.prepare(`
-      SELECT r.*,
-             COUNT(v.id) as vote_count,
-             ROUND(AVG(v.rating), 1) as avg_rating
-      FROM restaurants r
-      LEFT JOIN votes v ON r.id = v.restaurant_id
-      GROUP BY r.id
-      ORDER BY r.name ASC
-    `).all();
+    const supabase = getSupabase();
 
-    return NextResponse.json({ data: restaurants });
+    const { data: restaurants, error } = await supabase
+      .from('restaurants')
+      .select(`
+        *,
+        votes ( id, rating )
+      `)
+      .order('name', { ascending: true });
+
+    if (error) throw error;
+
+    const result = (restaurants || []).map((r: any) => ({
+      ...r,
+      vote_count: r.votes?.length || 0,
+      avg_rating: r.votes && r.votes.length > 0
+        ? Math.round((r.votes.reduce((sum: number, v: any) => sum + v.rating, 0) / r.votes.length) * 10) / 10
+        : null,
+      votes: undefined,
+    }));
+
+    return NextResponse.json({ data: result });
   } catch (error) {
     console.error('Error:', error);
     return NextResponse.json({ error: 'Error del servidor' }, { status: 500 });
   }
 }
 
-// PUT update restaurant
-export async function PUT(request: NextRequest) {
+export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const { id, name, description, instagram, image_url } = body;
+    const supabase = getSupabase();
 
-    if (!id) {
-      return NextResponse.json({ error: 'ID es requerido' }, { status: 400 });
-    }
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (instagram !== undefined) updateData.instagram = instagram;
+    if (image_url !== undefined) updateData.image_url = image_url;
 
-    // Build dynamic update
-    const updates: string[] = [];
-    const values: any[] = [];
+    const { data, error } = await supabase
+      .from('restaurants')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
 
-    if (name !== undefined) { updates.push('name = ?'); values.push(name); }
-    if (description !== undefined) { updates.push('description = ?'); values.push(description); }
-    if (instagram !== undefined) { updates.push('instagram = ?'); values.push(instagram); }
-    if (image_url !== undefined) { updates.push('image_url = ?'); values.push(image_url); }
-
-    if (updates.length === 0) {
-      return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 });
-    }
-
-    values.push(id);
-    db.prepare(`UPDATE restaurants SET ${updates.join(', ')} WHERE id = ?`).run(...values);
-
-    const updated = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(id);
-    return NextResponse.json({ data: updated, message: 'Restaurante actualizado' });
+    if (error) throw error;
+    return NextResponse.json({ success: true, data });
   } catch (error) {
     console.error('Error:', error);
     return NextResponse.json({ error: 'Error del servidor' }, { status: 500 });

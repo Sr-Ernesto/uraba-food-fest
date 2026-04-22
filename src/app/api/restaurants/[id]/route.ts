@@ -1,6 +1,6 @@
 // src/app/api/restaurants/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import db, { Restaurant } from '@/lib/db';
+import { getSupabase, Restaurant } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -11,22 +11,38 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const supabase = getSupabase();
 
-    // Try by ID or by slug
-    let restaurant: Restaurant | undefined;
+    let query = supabase.from('restaurants').select('*');
+    
     if (isNaN(Number(id))) {
-      restaurant = db.prepare('SELECT * FROM restaurants WHERE slug = ?').get(id) as Restaurant | undefined;
+      query = query.eq('slug', id);
     } else {
-      restaurant = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(Number(id)) as Restaurant | undefined;
+      query = query.eq('id', Number(id));
     }
 
-    if (!restaurant) {
+    const { data: restaurant, error } = await query.single();
+
+    if (error || !restaurant) {
       return NextResponse.json({ error: 'Restaurante no encontrado' }, { status: 404 });
     }
 
-    return NextResponse.json({ data: restaurant });
+    // Get vote stats
+    const { data: stats } = await supabase
+      .from('votes')
+      .select('rating', { count: 'exact' })
+      .eq('restaurant_id', restaurant.id);
+
+    const voteCount = stats?.length || 0;
+    const avgRating = stats && stats.length > 0
+      ? Math.round((stats.reduce((sum: number, v: any) => sum + v.rating, 0) / stats.length) * 10) / 10
+      : null;
+
+    return NextResponse.json({
+      data: { ...restaurant, vote_count: voteCount, avg_rating: avgRating }
+    });
   } catch (error) {
-    console.error('Error fetching restaurant:', error);
+    console.error('Error:', error);
     return NextResponse.json({ error: 'Error del servidor' }, { status: 500 });
   }
 }

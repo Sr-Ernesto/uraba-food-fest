@@ -1,43 +1,50 @@
 // src/app/api/admin/settings/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { getSupabase } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET() {
   try {
-    const rows = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
+    const supabase = getSupabase();
+    const { data: rows, error } = await supabase
+      .from('settings')
+      .select('key, value');
+
+    if (error) throw error;
+
     const settings: Record<string, string> = {};
-    for (const row of rows) {
+    (rows || []).forEach((row: any) => {
       settings[row.key] = row.value;
-    }
+    });
+
     return NextResponse.json({ data: settings });
   } catch (error) {
+    console.error('Error:', error);
     return NextResponse.json({ error: 'Error del servidor' }, { status: 500 });
   }
 }
 
-export async function PUT(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const upsert = db.prepare(`
-      INSERT INTO settings (key, value, updated_at)
-      VALUES (?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
-    `);
+    const supabase = getSupabase();
 
-    const upsertMany = db.transaction((entries: [string, string][]) => {
-      for (const [key, value] of entries) {
-        upsert.run(key, value);
-      }
-    });
+    const updates = Object.entries(body).map(([key, value]) => ({
+      key,
+      value: String(value),
+      updated_at: new Date().toISOString(),
+    }));
 
-    const entries = Object.entries(body) as [string, string][];
-    upsertMany(entries);
+    const { error } = await supabase
+      .from('settings')
+      .upsert(updates, { onConflict: 'key' });
 
-    return NextResponse.json({ success: true, message: 'Configuración actualizada' });
+    if (error) throw error;
+    return NextResponse.json({ success: true });
   } catch (error) {
+    console.error('Error:', error);
     return NextResponse.json({ error: 'Error del servidor' }, { status: 500 });
   }
 }

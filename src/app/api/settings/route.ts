@@ -1,19 +1,27 @@
 // src/app/api/settings/route.ts
 import { NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { getSupabase } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET() {
   try {
-    const rows = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
+    const supabase = getSupabase();
+    const { data: rows, error } = await supabase
+      .from('settings')
+      .select('key, value');
+
+    if (error) throw error;
+
     const settings: Record<string, string> = {};
-    for (const row of rows) {
+    (rows || []).forEach((row: any) => {
       settings[row.key] = row.value;
-    }
+    });
+
     return NextResponse.json({ data: settings });
   } catch (error) {
+    console.error('Error:', error);
     return NextResponse.json({ error: 'Error del servidor' }, { status: 500 });
   }
 }

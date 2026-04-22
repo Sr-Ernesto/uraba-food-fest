@@ -1,6 +1,6 @@
 // src/app/api/vote/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { getSupabase } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -15,99 +15,72 @@ export async function POST(request: NextRequest) {
       || request.headers.get('x-real-ip')
       || 'unknown';
 
-    // Validation
+    // Validate required fields
     if (!nombre || !whatsapp || !fingerprint || !restaurantId || !rating) {
-      return NextResponse.json(
-        { error: 'Todos los campos son obligatorios' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Todos los campos son requeridos' }, { status: 400 });
     }
 
+    // Validate WhatsApp (10 digits for Colombia)
+    const cleanWhatsapp = whatsapp.replace(/\D/g, '');
+    if (cleanWhatsapp.length < 10) {
+      return NextResponse.json({ error: 'Número de WhatsApp inválido' }, { status: 400 });
+    }
+
+    // Validate rating
     if (rating < 1 || rating > 5) {
-      return NextResponse.json(
-        { error: 'La calificación debe ser entre 1 y 5 estrellas' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Rating debe ser entre 1 y 5' }, { status: 400 });
     }
 
-    // Normalize WhatsApp
-    const normalizedWhatsapp = whatsapp.replace(/\D/g, '');
-    if (normalizedWhatsapp.length < 10) {
-      return NextResponse.json(
-        { error: 'Número de WhatsApp inválido' },
-        { status: 400 }
-      );
-    }
+    const supabase = getSupabase();
 
-    // Check if WhatsApp already voted FOR THIS RESTAURANT
-    const existingVote = db.prepare(
-      'SELECT id, rating FROM votes WHERE whatsapp = ? AND restaurant_id = ?'
-    ).get(normalizedWhatsapp, restaurantId) as { id: number; rating: number } | undefined;
+    // Check if this WhatsApp already voted for this restaurant
+    const { data: existingVote } = await supabase
+      .from('votes')
+      .select('id')
+      .eq('whatsapp', cleanWhatsapp)
+      .eq('restaurant_id', restaurantId)
+      .single();
 
     if (existingVote) {
-      return NextResponse.json(
-        {
-          error: 'Ya calificaste este restaurante',
-          code: 'ALREADY_VOTED',
-          existingRating: existingVote.rating,
-        },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: 'Ya votaste por este restaurante' }, { status: 409 });
     }
 
-    // Check if fingerprint already voted FOR THIS RESTAURANT
-    const existingFingerprint = db.prepare(
-      'SELECT id, rating FROM votes WHERE fingerprint = ? AND restaurant_id = ?'
-    ).get(fingerprint, restaurantId) as { id: number; rating: number } | undefined;
+    // Rate limiting: check for too many votes from same IP in last hour
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count: recentVotes } = await supabase
+      .from('votes')
+      .select('id', { count: 'exact', head: true })
+      .eq('ip', ip)
+      .gte('voted_at', oneHourAgo);
 
-    if (existingFingerprint) {
-      return NextResponse.json(
-        {
-          error: 'Este dispositivo ya calificó este restaurante',
-          code: 'DEVICE_DUPLICATE',
-          existingRating: existingFingerprint.rating,
-        },
-        { status: 409 }
-      );
-    }
-
-    // Rate limit by IP: max 3 votes per 10 min
-    const recentVotes = db.prepare(
-      `SELECT COUNT(*) as count FROM votes WHERE ip = ? AND voted_at > datetime('now', '-10 minutes')`
-    ).get(ip) as { count: number };
-
-    if (recentVotes.count >= 3) {
-      return NextResponse.json(
-        { error: 'Demasiados votos desde tu red. Intenta más tarde.', code: 'RATE_LIMIT' },
-        { status: 429 }
-      );
-    }
-
-    // Verify restaurant exists
-    const restaurant = db.prepare('SELECT id FROM restaurants WHERE id = ?').get(restaurantId);
-    if (!restaurant) {
-      return NextResponse.json(
-        { error: 'Restaurante no encontrado' },
-        { status: 404 }
-      );
+    if (recentVotes && recentVotes >= 20) {
+      return NextResponse.json({ error: 'Demasiados votos. Intenta más tarde.' }, { status: 429 });
     }
 
     // Insert vote
-    const result = db.prepare(`
-      INSERT INTO votes (nombre, whatsapp, ip, fingerprint, restaurant_id, rating)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(nombre, normalizedWhatsapp, ip, fingerprint, restaurantId, rating);
+    const { data: vote, error } = await supabase
+      .from('votes')
+      .insert({
+        nombre: nombre.trim(),
+        whatsapp: cleanWhatsapp,
+        ip,
+        fingerprint,
+        restaurant_id: restaurantId,
+        rating,
+      })
+      .select()
+      .single();
 
-    return NextResponse.json({
-      success: true,
-      message: '¡Gracias por votar! 🍔',
-      voteId: result.lastInsertRowid,
-    });
-  } catch (error) {
-    console.error('Error registering vote:', error);
-    return NextResponse.json(
-      { error: 'Error del servidor. Intenta nuevamente.' },
-      { status: 500 }
-    );
+    if (error) {
+      if (error.code === '23505') { // unique constraint
+        return NextResponse.json({ error: 'Ya votaste por este restaurante' }, { status: 409 });
+      }
+      throw error;
+    }
+
+    return NextResponse.json({ success: true, data: vote });
+  } catch (error: any) {
+    console.error('Error:', error);
+    return NextResponse.json({ error: 'Error del servidor' }, { status: 500 });
   }
 }

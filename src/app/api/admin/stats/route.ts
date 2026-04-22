@@ -1,95 +1,77 @@
 // src/app/api/admin/stats/route.ts
 import { NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { getSupabase } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET() {
   try {
-    // Total votes
-    const totalVotes = (db.prepare('SELECT COUNT(*) as count FROM votes').get() as any).count;
+    const supabase = getSupabase();
 
-    // Unique voters (by whatsapp)
-    const uniqueVoters = (db.prepare('SELECT COUNT(DISTINCT whatsapp) as count FROM votes').get() as any).count;
+    // Total votes
+    const { count: totalVotes } = await supabase
+      .from('votes')
+      .select('id', { count: 'exact', head: true });
+
+    // Unique voters
+    const { data: votersData } = await supabase
+      .from('votes')
+      .select('whatsapp');
+    const uniqueVoters = new Set(votersData?.map((v: any) => v.whatsapp) || []).size;
 
     // Average rating
-    const avgRating = (db.prepare('SELECT ROUND(AVG(rating), 1) as avg FROM votes').get() as any).avg || 0;
+    const { data: ratingsData } = await supabase
+      .from('votes')
+      .select('rating');
+    const avgRating = ratingsData && ratingsData.length > 0
+      ? Math.round((ratingsData.reduce((sum: number, v: any) => sum + v.rating, 0) / ratingsData.length) * 10) / 10
+      : 0;
 
-    // Votes by restaurant (with stats)
-    const restaurantStats = db.prepare(`
-      SELECT r.id, r.name, r.slug, r.instagram, r.image_url,
-             COUNT(v.id) as total_votes,
-             ROUND(AVG(v.rating), 1) as avg_rating,
-             MIN(v.rating) as min_rating,
-             MAX(v.rating) as max_rating
-      FROM restaurants r
-      LEFT JOIN votes v ON r.id = v.restaurant_id
-      GROUP BY r.id
-      ORDER BY avg_rating DESC, total_votes DESC
-    `).all();
+    // Votes by restaurant
+    const { data: restaurantStats } = await supabase
+      .from('restaurants')
+      .select(`
+        id, name, slug,
+        votes ( id, rating )
+      `);
+
+    const ranking = (restaurantStats || [])
+      .map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        slug: r.slug,
+        vote_count: r.votes?.length || 0,
+        avg_rating: r.votes && r.votes.length > 0
+          ? Math.round((r.votes.reduce((sum: number, v: any) => sum + v.rating, 0) / r.votes.length) * 10) / 10
+          : null,
+      }))
+      .sort((a: any, b: any) => b.vote_count - a.vote_count || (b.avg_rating || 0) - (a.avg_rating || 0));
 
     // Votes by hour (last 24h)
-    const votesByHour = db.prepare(`
-      SELECT strftime('%H', voted_at) as hour, COUNT(*) as count
-      FROM votes
-      WHERE voted_at > datetime('now', '-24 hours')
-      GROUP BY hour
-      ORDER BY hour
-    `).all();
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: recentVotes } = await supabase
+      .from('votes')
+      .select('voted_at')
+      .gte('voted_at', twentyFourHoursAgo);
 
-    // Rating distribution (1-5 stars)
-    const ratingDistribution = db.prepare(`
-      SELECT rating, COUNT(*) as count
-      FROM votes
-      GROUP BY rating
-      ORDER BY rating
-    `).all();
-
-    // Votes by day
-    const votesByDay = db.prepare(`
-      SELECT DATE(voted_at) as date, COUNT(*) as count
-      FROM votes
-      GROUP BY DATE(voted_at)
-      ORDER BY date
-    `).all();
-
-    // Recent votes (last 10)
-    const recentVotes = db.prepare(`
-      SELECT v.id, v.nombre, v.whatsapp, v.rating, v.voted_at,
-             r.name as restaurant_name
-      FROM votes v
-      JOIN restaurants r ON v.restaurant_id = r.id
-      ORDER BY v.voted_at DESC
-      LIMIT 10
-    `).all();
-
-    // Top voters (people who rated the most)
-    const topVoters = db.prepare(`
-      SELECT nombre, whatsapp, COUNT(*) as votes_count,
-             ROUND(AVG(rating), 1) as avg_rating
-      FROM votes
-      GROUP BY whatsapp
-      ORDER BY votes_count DESC
-      LIMIT 10
-    `).all();
+    const votesByHour: Record<string, number> = {};
+    (recentVotes || []).forEach((v: any) => {
+      const hour = new Date(v.voted_at).toLocaleTimeString('es-CO', { hour: '2-digit', hour12: false });
+      votesByHour[hour] = (votesByHour[hour] || 0) + 1;
+    });
 
     return NextResponse.json({
-      summary: {
-        totalVotes,
+      data: {
+        totalVotes: totalVotes || 0,
         uniqueVoters,
         avgRating,
-        totalRestaurants: (db.prepare('SELECT COUNT(*) as count FROM restaurants').get() as any).count,
-      },
-      restaurantStats,
-      votesByHour,
-      ratingDistribution,
-      votesByDay,
-      recentVotes,
-      topVoters,
+        ranking,
+        votesByHour,
+      }
     });
   } catch (error) {
-    console.error('Error fetching stats:', error);
+    console.error('Error:', error);
     return NextResponse.json({ error: 'Error del servidor' }, { status: 500 });
   }
 }
