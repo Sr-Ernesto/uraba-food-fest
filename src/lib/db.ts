@@ -15,14 +15,7 @@ export function getSupabase() {
   return _supabase;
 }
 
-// Lazy proxy - same pattern as before
-const db = new Proxy({} as ReturnType<typeof createClient>, {
-  get(_target, prop) {
-    return (getSupabase() as any)[prop];
-  }
-});
-
-export default db;
+export default getSupabase;
 
 // Types
 export interface Restaurant {
