@@ -1,0 +1,546 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Users, Star, UtensilsCrossed, Vote, Download, Edit3, X,
+  BarChart3, TrendingUp, Clock, Award, ChevronRight, Save, LogOut, Image as ImageIcon, Settings, Upload
+} from 'lucide-react';
+
+const InstagramIcon = ({ size = 16, className = '' }: { size?: number; className?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+    <circle cx="12" cy="12" r="5" />
+    <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none" />
+  </svg>
+);
+import StatsCard from '@/components/StatsCard';
+import BarChart from '@/components/BarChart';
+import { useRouter } from 'next/navigation';
+
+interface Stats {
+  summary: {
+    totalVotes: number;
+    uniqueVoters: number;
+    avgRating: number;
+    totalRestaurants: number;
+  };
+  restaurantStats: {
+    id: number;
+    name: string;
+    slug: string;
+    instagram: string;
+    image_url: string | null;
+    total_votes: number;
+    avg_rating: number;
+    min_rating: number;
+    max_rating: number;
+  }[];
+  votesByHour: { hour: string; count: number }[];
+  ratingDistribution: { rating: number; count: number }[];
+  votesByDay: { date: string; count: number }[];
+  recentVotes: {
+    id: number;
+    nombre: string;
+    whatsapp: string;
+    rating: number;
+    voted_at: string;
+    restaurant_name: string;
+  }[];
+  topVoters: {
+    nombre: string;
+    whatsapp: string;
+    votes_count: number;
+    avg_rating: number;
+  }[];
+}
+
+type Tab = 'dashboard' | 'restaurantes' | 'votos' | 'contactos' | 'configuracion';
+
+export default function AdminPage() {
+  const router = useRouter();
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>('dashboard');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', description: '', instagram: '', image_url: '' });
+  const [saving, setSaving] = useState(false);
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [settingsForm, setSettingsForm] = useState({ event_name: '', event_tagline: '', logo_url: '' });
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingBurger, setUploadingBurger] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetchStats();
+    // Load settings
+    fetch('/api/admin/settings').then(r => r.json()).then(data => {
+      if (data.data) {
+        setSettings(data.data);
+        setSettingsForm({
+          event_name: data.data.event_name || '',
+          event_tagline: data.data.event_tagline || '',
+          logo_url: data.data.logo_url || '',
+        });
+      }
+    }).catch(() => {});
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch('/api/admin/stats');
+      if (res.status === 401) { router.push('/admin/login'); return; }
+      const data = await res.json();
+      setStats(data);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  };
+
+  const startEdit = (restaurant: any) => {
+    setEditingId(restaurant.id);
+    setEditForm({
+      name: restaurant.name,
+      description: restaurant.description || '',
+      instagram: restaurant.instagram || '',
+      image_url: restaurant.image_url || '',
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editingId) return;
+    setSaving(true);
+    try {
+      await fetch('/api/admin/restaurants', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingId, ...editForm }),
+      });
+      setEditingId(null);
+      fetchStats();
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  const handleLogout = async () => {
+    await fetch('/api/admin/auth', { method: 'DELETE' });
+    router.push('/admin/login');
+  };
+
+  const saveSettings = async () => {
+    setSaving(true);
+    try {
+      await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settingsForm),
+      });
+      setSettings(settingsForm);
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingLogo(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', 'logo');
+      const res = await fetch('/api/admin/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.url) {
+        setSettingsForm(prev => ({ ...prev, logo_url: data.url }));
+      }
+    } catch (e) { console.error(e); }
+    finally { setUploadingLogo(false); }
+  };
+
+  const handleBurgerUpload = async (restaurantId: number, slug: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingBurger(restaurantId);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', 'restaurant');
+      formData.append('slug', slug);
+      const res = await fetch('/api/admin/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.url) {
+        // Update restaurant image_url
+        await fetch('/api/admin/restaurants', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: restaurantId, image_url: data.url }),
+        });
+        fetchStats();
+      }
+    } catch (e) { console.error(e); }
+    finally { setUploadingBurger(null); }
+  };
+
+  if (loading || !stats) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="text-5xl">🍔</motion.div>
+      </div>
+    );
+  }
+
+  const starColors = ['', 'bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-lime-500', 'bg-green-500'];
+  const tabs: { id: Tab; label: string; icon: any }[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+    { id: 'restaurantes', label: 'Restaurantes', icon: UtensilsCrossed },
+    { id: 'votos', label: 'Votos', icon: Vote },
+    { id: 'contactos', label: 'Contactos', icon: Users },
+    { id: 'configuracion', label: 'Configuración', icon: Settings },
+  ];
+
+  return (
+    <div className="min-h-screen bg-black text-white">
+      {/* Header */}
+      <header className="border-b border-surface-3 bg-surface-1/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🍔</span>
+            <div>
+              <h1 className="text-lg font-bold">Uraba Food Fest</h1>
+              <p className="text-xs text-gray-500">Panel de control</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <a href="/" target="_blank" className="text-sm text-gray-400 hover:text-white transition-colors flex items-center gap-1">
+              Ver sitio <ChevronRight size={14} />
+            </a>
+            <button onClick={handleLogout} className="p-2 hover:bg-surface-2 rounded-lg transition-colors text-gray-400 hover:text-red-400" title="Cerrar sesión">
+              <LogOut size={16} />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Tabs */}
+      <nav className="border-b border-surface-3 bg-surface-1/50">
+        <div className="max-w-7xl mx-auto px-4 flex gap-1 overflow-x-auto">
+          {tabs.map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                tab === t.id ? 'border-brand text-brand' : 'border-transparent text-gray-400 hover:text-gray-200'
+              }`}>
+              <t.icon size={16} /> {t.label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      <main className="max-w-7xl mx-auto px-4 py-6">
+        <AnimatePresence mode="wait">
+          {/* DASHBOARD */}
+          {tab === 'dashboard' && (
+            <motion.div key="dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <StatsCard title="Total Votos" value={stats.summary.totalVotes} icon={Vote} color="bg-brand/20 text-brand" delay={0} />
+                <StatsCard title="Votantes Únicos" value={stats.summary.uniqueVoters} icon={Users} color="bg-blue-500/20 text-blue-400" delay={0.1} />
+                <StatsCard title="Rating Promedio" value={`${stats.summary.avgRating} ⭐`} icon={Star} color="bg-gold/20 text-gold" delay={0.2} />
+                <StatsCard title="Restaurantes" value={stats.summary.totalRestaurants} icon={UtensilsCrossed} color="bg-green-500/20 text-green-400" delay={0.3} />
+              </div>
+
+              <div className="grid lg:grid-cols-2 gap-6 mb-8">
+                <BarChart title="Distribución de Calificaciones"
+                  data={stats.ratingDistribution.map((r) => ({ label: `${r.rating} ⭐`, value: r.count, color: starColors[r.rating] || 'bg-gray-500' }))} />
+                <BarChart title="Votos por Día"
+                  data={stats.votesByDay.map((d) => ({ label: d.date.slice(5), value: d.count, color: 'bg-brand' }))} />
+              </div>
+
+              {/* Ranking */}
+              <div className="bg-surface-1 border border-surface-3 rounded-2xl p-5 mb-8">
+                <h3 className="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2">
+                  <Award size={16} className="text-gold" /> Ranking
+                </h3>
+                <div className="space-y-2">
+                  {stats.restaurantStats.filter((r) => r.total_votes > 0)
+                    .sort((a, b) => b.avg_rating - a.avg_rating || b.total_votes - a.total_votes)
+                    .map((r, i) => (
+                      <motion.div key={r.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }}
+                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-surface-2 transition-colors">
+                        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                          i === 0 ? 'bg-gold text-black' : i === 1 ? 'bg-gray-400 text-black' : i === 2 ? 'bg-amber-700 text-white' : 'bg-surface-3 text-gray-400'
+                        }`}>{i + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{r.name}</p>
+                          <p className="text-xs text-gray-500">{r.total_votes} votos</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-gold">{r.avg_rating || '—'}</p>
+                          <p className="text-xs text-gray-500">{r.min_rating !== null ? `${r.min_rating}-${r.max_rating}` : ''}</p>
+                        </div>
+                      </motion.div>
+                    ))}
+                  {stats.restaurantStats.filter((r) => r.total_votes > 0).length === 0 && (
+                    <p className="text-center text-gray-500 py-8">Aún no hay votos</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Recent votes */}
+              <div className="bg-surface-1 border border-surface-3 rounded-2xl p-5">
+                <h3 className="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2">
+                  <Clock size={16} className="text-brand" /> Votos Recientes
+                </h3>
+                <div className="space-y-2">
+                  {stats.recentVotes.map((v) => (
+                    <div key={v.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-surface-2 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{v.nombre}</p>
+                        <p className="text-xs text-gray-500">{v.restaurant_name} · {v.whatsapp}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-gold font-bold">{'⭐'.repeat(v.rating)}</p>
+                        <p className="text-xs text-gray-500">{new Date(v.voted_at).toLocaleString('es-CO', { hour: '2-digit', minute: '2-digit' })}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* RESTAURANTES */}
+          {tab === 'restaurantes' && (
+            <motion.div key="restaurantes" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold">Restaurantes</h2>
+                <span className="text-sm text-gray-400">{stats.restaurantStats.length} total</span>
+              </div>
+
+              <div className="space-y-3">
+                {stats.restaurantStats.map((r, i) => (
+                  <motion.div key={r.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.02 }}
+                    className="bg-surface-1 border border-surface-3 rounded-2xl p-4">
+                    {editingId === r.id ? (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-xs text-gray-400 mb-1 block">Nombre</label>
+                          <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                            className="w-full px-3 py-2 bg-surface-2 border border-surface-3 rounded-lg text-sm focus:outline-none focus:border-brand" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-400 mb-1 block">Descripción</label>
+                          <textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                            rows={2} className="w-full px-3 py-2 bg-surface-2 border border-surface-3 rounded-lg text-sm focus:outline-none focus:border-brand resize-none" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-400 mb-1 block flex items-center gap-1"><InstagramIcon size={12} /> Instagram</label>
+                          <input value={editForm.instagram} onChange={(e) => setEditForm({ ...editForm, instagram: e.target.value })}
+                            placeholder="@usuario" className="w-full px-3 py-2 bg-surface-2 border border-surface-3 rounded-lg text-sm focus:outline-none focus:border-brand" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-400 mb-1 block flex items-center gap-1"><ImageIcon size={12} /> URL de imagen</label>
+                          <input value={editForm.image_url} onChange={(e) => setEditForm({ ...editForm, image_url: e.target.value })}
+                            placeholder="https://ejemplo.com/burger.jpg" className="w-full px-3 py-2 bg-surface-2 border border-surface-3 rounded-lg text-sm focus:outline-none focus:border-brand" />
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={saveEdit} disabled={saving}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-brand hover:bg-brand-dark rounded-lg text-sm font-medium transition-colors">
+                            <Save size={14} /> {saving ? 'Guardando...' : 'Guardar'}
+                          </button>
+                          <button onClick={() => setEditingId(null)}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-surface-3 hover:bg-surface-2 rounded-lg text-sm transition-colors">
+                            <X size={14} /> Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                        <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-surface-2 flex items-center justify-center text-2xl shrink-0 overflow-hidden">
+                          {r.image_url ? (
+                            <img src={r.image_url} alt={r.name} className="w-full h-full object-cover" />
+                          ) : '🍔'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-bold truncate">{r.name}</h3>
+                            {r.avg_rating && <span className="text-xs bg-gold/20 text-gold px-2 py-0.5 rounded-full font-medium">{r.avg_rating} ⭐</span>}
+                          </div>
+                          {r.instagram && (
+                            <p className="text-xs text-pink-400 flex items-center gap-1"><InstagramIcon size={10} /> {r.instagram}</p>
+                          )}
+                          <p className="text-xs text-gray-400 mt-0.5">{r.total_votes} votos · <span className="text-gray-500">/restaurante/{r.slug}</span></p>
+                        </div>
+                        <label className="p-2 hover:bg-surface-2 rounded-lg transition-colors text-gray-400 hover:text-white cursor-pointer" title="Subir foto">
+                          <Upload size={16} />
+                          <input type="file" accept="image/*" className="hidden" onChange={(e) => handleBurgerUpload(r.id, r.slug, e)} />
+                        </label>
+                        <button onClick={() => startEdit(r)} className="p-2 hover:bg-surface-2 rounded-lg transition-colors text-gray-400 hover:text-white">
+                          <Edit3 size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* VOTOS */}
+          {tab === 'votos' && (
+            <motion.div key="votos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <h2 className="text-xl font-bold mb-6">Todos los Votos</h2>
+              <div className="bg-surface-1 border border-surface-3 rounded-2xl p-5 mb-6">
+                <h3 className="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2">
+                  <TrendingUp size={16} className="text-brand" /> Top Votantes
+                </h3>
+                <div className="space-y-2">
+                  {stats.topVoters.map((v, i) => (
+                    <div key={v.whatsapp} className="flex items-center gap-3 p-3 rounded-xl hover:bg-surface-2 transition-colors">
+                      <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${i === 0 ? 'bg-gold text-black' : 'bg-surface-3 text-gray-400'}`}>{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{v.nombre}</p>
+                        <p className="text-xs text-gray-500">{v.whatsapp}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold">{v.votes_count} votos</p>
+                        <p className="text-xs text-gold">{v.avg_rating} ⭐</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-surface-1 border border-surface-3 rounded-2xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-surface-3">
+                        <th className="text-left p-3 text-gray-400 font-medium">Nombre</th>
+                        <th className="text-left p-3 text-gray-400 font-medium">WhatsApp</th>
+                        <th className="text-left p-3 text-gray-400 font-medium">Restaurante</th>
+                        <th className="text-left p-3 text-gray-400 font-medium">Rating</th>
+                        <th className="text-left p-3 text-gray-400 font-medium">Fecha</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.recentVotes.map((v) => (
+                        <tr key={v.id} className="border-b border-surface-3/50 hover:bg-surface-2/50">
+                          <td className="p-3 font-medium">{v.nombre}</td>
+                          <td className="p-3 text-gray-400">{v.whatsapp}</td>
+                          <td className="p-3">{v.restaurant_name}</td>
+                          <td className="p-3 text-gold font-bold">{v.rating} ⭐</td>
+                          <td className="p-3 text-gray-500 text-xs">{new Date(v.voted_at).toLocaleString('es-CO')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* CONTACTOS */}
+          {tab === 'contactos' && (
+            <motion.div key="contactos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold">Contactos</h2>
+                  <p className="text-sm text-gray-400 mt-1">Base de datos para el próximo festival 🍟</p>
+                </div>
+                <a href="/api/admin/export"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-brand hover:bg-brand-dark rounded-xl text-sm font-medium transition-colors">
+                  <Download size={16} /> Exportar CSV
+                </a>
+              </div>
+
+              <div className="bg-surface-1 border border-surface-3 rounded-2xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-surface-3">
+                        <th className="text-left p-3 text-gray-400 font-medium">Nombre</th>
+                        <th className="text-left p-3 text-gray-400 font-medium">WhatsApp</th>
+                        <th className="text-left p-3 text-gray-400 font-medium">Restaurantes</th>
+                        <th className="text-left p-3 text-gray-400 font-medium">Rating Avg</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.topVoters.map((v) => (
+                        <tr key={v.whatsapp} className="border-b border-surface-3/50 hover:bg-surface-2/50">
+                          <td className="p-3 font-medium">{v.nombre}</td>
+                          <td className="p-3 text-gray-400">{v.whatsapp}</td>
+                          <td className="p-3">{v.votes_count}</td>
+                          <td className="p-3 text-gold">{v.avg_rating} ⭐</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {stats.topVoters.length === 0 && <p className="text-center text-gray-500 py-8">Aún no hay contactos</p>}
+              </div>
+
+              <div className="mt-4 p-4 bg-surface-2 rounded-xl text-xs text-gray-500">
+                💡 El CSV exporta: Nombre, WhatsApp, Restaurantes Votados, Rating Promedio, Primer y Último Voto.
+              </div>
+            </motion.div>
+          )}
+
+          {/* =================== CONFIGURACIÓN =================== */}
+          {tab === 'configuracion' && (
+            <motion.div key="configuracion" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <h2 className="text-xl font-bold mb-6">Configuración del Evento</h2>
+
+              <div className="space-y-6 max-w-lg">
+                {/* Logo */}
+                <div className="bg-surface-1 border border-surface-3 rounded-2xl p-5">
+                  <h3 className="text-sm font-semibold text-gray-300 mb-4">Logo del Evento</h3>
+                  <div className="flex items-center gap-4">
+                    <div className="w-20 h-20 rounded-xl bg-surface-2 flex items-center justify-center overflow-hidden">
+                      {settingsForm.logo_url ? (
+                        <img src={settingsForm.logo_url} alt="Logo" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-3xl">🍔</span>
+                      )}
+                    </div>
+                    <label className="flex items-center gap-2 px-4 py-2 bg-surface-2 hover:bg-surface-3 rounded-xl text-sm cursor-pointer transition-colors">
+                      <Upload size={16} />
+                      {uploadingLogo ? 'Subiendo...' : 'Subir logo'}
+                      <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={uploadingLogo} />
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">JPG, PNG o WebP. Máximo 5MB. Recomendado: 400x400px</p>
+                </div>
+
+                {/* Nombre y tagline */}
+                <div className="bg-surface-1 border border-surface-3 rounded-2xl p-5 space-y-4">
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Nombre del Evento</label>
+                    <input
+                      value={settingsForm.event_name}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, event_name: e.target.value })}
+                      placeholder="Uraba Food Fest"
+                      className="w-full px-3 py-2 bg-surface-2 border border-surface-3 rounded-lg text-sm focus:outline-none focus:border-brand"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Tagline / Eslogan</label>
+                    <input
+                      value={settingsForm.event_tagline}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, event_tagline: e.target.value })}
+                      placeholder="Vota por la mejor hamburguesa"
+                      className="w-full px-3 py-2 bg-surface-2 border border-surface-3 rounded-lg text-sm focus:outline-none focus:border-brand"
+                    />
+                  </div>
+                  <button
+                    onClick={saveSettings}
+                    disabled={saving}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-brand hover:bg-brand-dark rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <Save size={14} /> {saving ? 'Guardando...' : 'Guardar'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
+    </div>
+  );
+}
