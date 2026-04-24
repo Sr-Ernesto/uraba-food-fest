@@ -17,7 +17,7 @@ export default function ImageDropZone({
   currentUrl,
   onUpload,
   label,
-  hint = 'Arrastra una imagen o haz clic · JPG, PNG, WebP · Máx 5MB',
+  hint = 'Arrastra una imagen o haz clic · JPG, PNG, WebP · Máx 20MB',
   size = 'md',
   className = '',
 }: ImageDropZoneProps) {
@@ -43,9 +43,9 @@ export default function ImageDropZone({
       return;
     }
 
-    // Validate size
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Máximo 5MB');
+    // Validate size (max 20MB)
+    if (file.size > 20 * 1024 * 1024) {
+      setError('Máximo 20MB');
       return;
     }
 

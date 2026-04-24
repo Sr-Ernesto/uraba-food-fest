@@ -374,7 +374,7 @@ export default function AdminPage() {
                             currentUrl={editForm.image_url}
                             onUpload={uploadRestaurantImage(editingId!, stats.restaurantStats.find(r => r.id === editingId)?.slug || '')}
                             size="md"
-                            hint="Arrastra la foto de la hamburguesa · JPG, PNG, WebP · Máx 5MB"
+                            hint="Arrastra la foto de la hamburguesa · JPG, PNG, WebP · Máx 20MB"
                           />
                         </div>
                         <div className="flex gap-2">
@@ -533,7 +533,7 @@ export default function AdminPage() {
                     currentUrl={settingsForm.logo_url}
                     onUpload={uploadLogoImage}
                     size="md"
-                    hint="Logo del evento · JPG, PNG, WebP · Máx 5MB · Recomendado 400x400"
+                    hint="Logo del evento · JPG, PNG, WebP · Máx 20MB · Recomendado 400x400"
                   />
                 </div>
 
