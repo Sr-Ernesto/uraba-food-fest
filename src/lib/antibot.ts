@@ -217,8 +217,6 @@ const SUSPICIOUS_WA_PATTERNS = [
 export function checkVoteAnomaly(
   nombre: string,
   whatsapp: string,
-  rating: number,
-  allRecentRatings: number[] // recent ratings for same restaurant
 ): AnomalyCheck {
   const reasons: string[] = [];
 
@@ -235,14 +233,6 @@ export function checkVoteAnomaly(
     if (pattern.test(whatsapp)) {
       reasons.push(`WhatsApp sospechoso: "${whatsapp}"`);
       break;
-    }
-  }
-
-  // Check if all recent votes for this restaurant are 5 stars (bot pattern)
-  if (allRecentRatings.length >= 10) {
-    const allFive = allRecentRatings.every(r => r === 5);
-    if (allFive && rating === 5) {
-      reasons.push('Patrón bot detectado: todos los votos recientes son 5⭐');
     }
   }
 

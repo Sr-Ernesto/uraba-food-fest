@@ -209,16 +209,7 @@ export async function POST(request: NextRequest) {
     // ========================================
     // LAYER 5: Anomaly detection
     // ========================================
-    // Get recent ratings for this restaurant to detect bot patterns
-    const { data: recentRestaurantVotes } = await supabase
-      .from('votes')
-      .select('rating')
-      .eq('restaurant_id', restaurantId)
-      .order('voted_at', { ascending: false })
-      .limit(20);
-
-    const recentRatings = (recentRestaurantVotes || []).map(v => v.rating);
-    const anomalyCheck = checkVoteAnomaly(nombre.trim(), cleanWhatsapp, rating, recentRatings);
+    const anomalyCheck = checkVoteAnomaly(nombre.trim(), cleanWhatsapp);
 
     if (!anomalyCheck.passed) {
       await logSecurityEvent(supabase, 'anomaly_detected', ip, `Razones: ${anomalyCheck.reasons.join('; ')}`, cleanWhatsapp, restaurantId);
