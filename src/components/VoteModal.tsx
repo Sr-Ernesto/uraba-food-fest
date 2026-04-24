@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, Check, AlertCircle } from 'lucide-react';
 import StarRating from './StarRating';
+import Image from 'next/image';
 
 interface VoteModalProps {
   isOpen: boolean;
@@ -98,34 +99,16 @@ export default function VoteModal({ isOpen, onClose, restaurant }: VoteModalProp
           const fp = await FingerprintJS.load();
           const result = await fp.get();
           setFingerprint(result.visitorId);
-        } catch (e) {
-          // Fallback: generate a random ID stored in localStorage
-          let stored = localStorage.getItem('bp_fp');
-          if (!stored) {
-            stored = 'fp_' + Math.random().toString(36).substring(2, 15);
-            localStorage.setItem('bp_fp', stored);
-          }
-          setFingerprint(stored);
+        } catch {
+          setFingerprint('unknown-' + Math.random().toString(36).slice(2));
         }
       };
       getFp();
-    }
-  }, [isOpen]);
 
-  // Reset on open
-  useEffect(() => {
-    if (isOpen) {
-      setStep('rate');
-      setRating(0);
-      setNombre('');
-      setWhatsapp('');
-      setError('');
-      setLoading(false);
-
-      // Check if user already voted for THIS restaurant
-      const savedVotes = localStorage.getItem('bp_votes_map');
-      if (savedVotes && restaurant) {
-        const votesMap = JSON.parse(savedVotes);
+      // Check if already voted
+      const saved = localStorage.getItem('bp_votes_map');
+      if (saved && restaurant) {
+        const votesMap = JSON.parse(saved);
         if (votesMap[restaurant.id]) {
           setRating(votesMap[restaurant.id]);
           setStep('already-voted');
@@ -227,6 +210,22 @@ export default function VoteModal({ isOpen, onClose, restaurant }: VoteModalProp
               {/* Gradient header */}
               <div className="h-2 bg-gradient-to-r from-brand via-gold to-brand-light" />
 
+              {/* ── Restaurant photo hero ── */}
+              <div className="relative h-48 bg-white flex items-center justify-center overflow-hidden">
+                {restaurant.image_url ? (
+                  <Image
+                    src={restaurant.image_url}
+                    alt={restaurant.name}
+                    fill
+                    className="object-contain p-4"
+                  />
+                ) : (
+                  <span className="text-6xl">🍔</span>
+                )}
+                {/* Bottom fade for transition to content */}
+                <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-surface-1 to-transparent" />
+              </div>
+
               <div className="p-6">
                 <AnimatePresence mode="wait">
                   {/* STEP: Rate */}
@@ -239,7 +238,7 @@ export default function VoteModal({ isOpen, onClose, restaurant }: VoteModalProp
                       className="flex flex-col items-center text-center"
                     >
                       <h2 className="text-xl font-bold mb-1">{restaurant.name}</h2>
-                      <p className="text-sm text-gray-400 mb-8">{restaurant.description}</p>
+                      <p className="text-sm text-gray-400 mb-4">{restaurant.description}</p>
 
                       <p className="text-lg font-semibold mb-4">¿Qué tal te pareció?</p>
 
@@ -347,30 +346,31 @@ export default function VoteModal({ isOpen, onClose, restaurant }: VoteModalProp
                         transition={{ type: 'spring' as const, damping: 10, stiffness: 200, delay: 0.1 }}
                         className="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center mb-4"
                       >
-                        <Check size={40} className="text-green-400" />
+                        <Check size={36} className="text-green-400" />
                       </motion.div>
-
-                      <h2 className="text-2xl font-bold mb-2">¡Voto registrado!</h2>
-                      <p className="text-gray-400 mb-4">
+                      <h2 className="text-xl font-bold mb-2">¡Gracias!</h2>
+                      <p className="text-gray-400 mb-2">
                         Gracias por participar, <span className="text-white font-medium">{nombre}</span>
                       </p>
-
-                      <div className="text-4xl mb-4">
-                        {'⭐'.repeat(rating)}
+                      <div className="flex gap-1 mb-6">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <motion.span
+                            key={s}
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ delay: 0.3 + s * 0.08, type: 'spring' as const, damping: 8 }}
+                            className={s <= rating ? 'text-gold' : 'text-gray-600'}
+                          >
+                            ⭐
+                          </motion.span>
+                        ))}
                       </div>
-
-                      <p className="text-sm text-gray-500">
-                        Tu calificación es privada. Solo tú puedes verla.
-                      </p>
-
-                      <motion.button
+                      <button
                         onClick={onClose}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className="mt-6 px-8 py-3 bg-surface-2 hover:bg-surface-3 border border-surface-3 rounded-xl font-medium transition-colors"
+                        className="px-6 py-2 bg-surface-2 hover:bg-surface-3 rounded-xl text-sm transition-colors"
                       >
                         Cerrar
-                      </motion.button>
+                      </button>
                     </motion.div>
                   )}
 
@@ -378,32 +378,31 @@ export default function VoteModal({ isOpen, onClose, restaurant }: VoteModalProp
                   {step === 'already-voted' && (
                     <motion.div
                       key="already-voted"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
                       className="flex flex-col items-center text-center py-6"
                     >
                       <div className="w-16 h-16 rounded-full bg-gold/20 flex items-center justify-center mb-4">
-                        <span className="text-3xl">🍔</span>
+                        <span className="text-3xl">⭐</span>
                       </div>
-
-                      <h2 className="text-xl font-bold mb-2">Ya calificaste este restaurante</h2>
-                      <p className="text-gray-400 mb-4">
-                        Tu calificación:{' '}
-                        <span className="text-gold font-bold">{rating} {rating === 1 ? 'estrella' : 'estrellas'}</span>
-                      </p>
-
-                      <p className="text-sm text-gray-500">
+                      <h2 className="text-xl font-bold mb-2">Ya votaste</h2>
+                      <p className="text-gray-400 mb-1">Tu calificación:</p>
+                      <div className="flex gap-1 mb-2">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <span key={s} className={s <= rating ? 'text-gold text-2xl' : 'text-gray-600 text-2xl'}>
+                            ★
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-500 mb-6">
                         Solo puedes votar una vez por número de WhatsApp.
                       </p>
-
-                      <motion.button
+                      <button
                         onClick={onClose}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className="mt-6 px-8 py-3 bg-surface-2 hover:bg-surface-3 border border-surface-3 rounded-xl font-medium transition-colors"
+                        className="px-6 py-2 bg-surface-2 hover:bg-surface-3 rounded-xl text-sm transition-colors"
                       >
-                        Entendido
-                      </motion.button>
+                        Cerrar
+                      </button>
                     </motion.div>
                   )}
                 </AnimatePresence>
