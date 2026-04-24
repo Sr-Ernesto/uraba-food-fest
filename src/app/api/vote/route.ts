@@ -153,16 +153,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Ya votaste por este restaurante', code: 'ALREADY_VOTED' }, { status: 409 });
     }
 
-    // Per-IP rate limiting (keep existing)
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    // Per-IP rate limiting: 8 votes per 24 hours
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { count: recentVotes } = await supabase
       .from('votes')
       .select('id', { count: 'exact', head: true })
       .eq('ip', ip)
-      .gte('voted_at', oneHourAgo);
+      .gte('voted_at', twentyFourHoursAgo);
 
-    if (recentVotes && recentVotes >= 10) {
-      return NextResponse.json({ error: 'Demasiados votos. Intenta más tarde.' }, { status: 429 });
+    if (recentVotes && recentVotes >= 8) {
+      return NextResponse.json({
+        error: 'Has alcanzado el límite de votos por hoy.',
+        code: 'RATE_LIMIT_IP',
+        message: 'Si crees que esto es un error, contacta al administrador del evento.',
+      }, { status: 429 });
     }
 
     // ========================================

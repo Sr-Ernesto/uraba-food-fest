@@ -155,8 +155,8 @@ export function getSubnet(ip: string): string {
   return `${parts[0]}.${parts[1]}.${parts[2]}`;
 }
 
-const SUBNET_WINDOW_MS = 60 * 60 * 1000; // 1 hour
-const SUBNET_MAX_VOTES = 30; // max 30 votes per /24 subnet per hour
+const SUBNET_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+const SUBNET_MAX_VOTES = 24; // max 24 votes per /24 subnet per day (3x per-IP limit)
 
 export function checkSubnetRateLimit(ip: string): { allowed: boolean; remaining: number } {
   const subnet = getSubnet(ip);

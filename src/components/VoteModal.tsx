@@ -192,6 +192,10 @@ export default function VoteModal({ isOpen, onClose, restaurant }: VoteModalProp
           localStorage.setItem('bp_votes_map', JSON.stringify(existing));
           return;
         }
+        if (data.code === 'RATE_LIMIT_IP') {
+          setError(data.error + ' ' + (data.message || ''));
+          return;
+        }
         setError(data.error || 'Error al registrar tu voto');
         return;
       }
