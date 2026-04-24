@@ -32,7 +32,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'restaurantId requerido' }, { status: 400 });
     }
 
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    const ip = request.headers.get('cf-connecting-ip')
+      || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
       || request.headers.get('x-real-ip')
       || 'unknown';
 
@@ -71,10 +72,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { nombre, whatsapp, fingerprint, restaurantId, rating, token, challenge, nonce } = body;
 
-    // Get IP
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-      || request.headers.get('x-real-ip')
-      || 'unknown';
+  // Get real client IP (prioritize CF-Connecting-IP for Cloudflare setups)
+  const ip = request.headers.get('cf-connecting-ip')       // Cloudflare: true client IP
+    || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || request.headers.get('x-real-ip')
+    || 'unknown';
 
     // ========================================
     // LAYER 1: Block datacenter/hosting IPs
