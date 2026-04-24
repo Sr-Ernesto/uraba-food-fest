@@ -75,14 +75,21 @@ export async function GET() {
     });
 
     // Top voters
-    const voterMap: Record<string, { nombre: string; whatsapp: string; votes: number; totalRating: number }> = {};
+    const voterMap: Record<string, { nombre: string; whatsapp: string; votes: number; totalRating: number; voteDetails: any[] }> = {};
     (allVotes || []).forEach((v: any) => {
       const key = v.whatsapp;
       if (!voterMap[key]) {
-        voterMap[key] = { nombre: v.nombre, whatsapp: v.whatsapp, votes: 0, totalRating: 0 };
+        voterMap[key] = { nombre: v.nombre, whatsapp: v.whatsapp, votes: 0, totalRating: 0, voteDetails: [] };
       }
       voterMap[key].votes++;
       voterMap[key].totalRating += v.rating;
+      const restaurant = restaurants?.find((r: any) => r.id === v.restaurant_id);
+      voterMap[key].voteDetails.push({
+        restaurant_name: restaurant?.name || 'Desconocido',
+        rating: v.rating,
+        opinion: v.opinion || null,
+        voted_at: v.voted_at,
+      });
     });
     const topVoters = Object.values(voterMap)
       .map(v => ({
@@ -90,6 +97,7 @@ export async function GET() {
         whatsapp: v.whatsapp,
         votes_count: v.votes,
         avg_rating: Math.round((v.totalRating / v.votes) * 10) / 10,
+        vote_details: v.voteDetails.sort((a: any, b: any) => new Date(b.voted_at).getTime() - new Date(a.voted_at).getTime()),
       }))
       .sort((a, b) => b.votes_count - a.votes_count);
 

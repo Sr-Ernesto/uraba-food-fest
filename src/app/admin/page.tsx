@@ -16,6 +16,7 @@ const InstagramIcon = ({ size = 16, className = '' }: { size?: number; className
 );
 import ImageDropZone from '@/components/ImageDropZone';
 import QRCard from '@/components/QRCard';
+import VoterModal from '@/components/VoterModal';
 import StatsCard from '@/components/StatsCard';
 import BarChart from '@/components/BarChart';
 import { useRouter } from 'next/navigation';
@@ -56,6 +57,12 @@ interface Stats {
     whatsapp: string;
     votes_count: number;
     avg_rating: number;
+    vote_details: {
+      restaurant_name: string;
+      rating: number;
+      opinion: string | null;
+      voted_at: string;
+    }[];
   }[];
 }
 
@@ -76,6 +83,10 @@ export default function AdminPage() {
   const [securityLogs, setSecurityLogs] = useState<any[]>([]);
   const [securitySummary, setSecuritySummary] = useState<Record<string, number>>({});
   const [logFilter, setLogFilter] = useState<string>('');
+  const [selectedVoter, setSelectedVoter] = useState<any>(null);
+  const [voterModalOpen, setVoterModalOpen] = useState(false);
+  const [contactSearch, setContactSearch] = useState('');
+  const [contactRestaurantFilter, setContactRestaurantFilter] = useState('');
 
   useEffect(() => {
     fetchStats();
@@ -658,10 +669,10 @@ export default function AdminPage() {
           {/* CONTACTOS */}
           {tab === 'contactos' && (
             <motion.div key="contactos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-xl font-bold">Contactos</h2>
-                  <p className="text-sm text-gray-400 mt-1">Base de datos para el próximo festival 🍟</p>
+                  <p className="text-sm text-gray-400 mt-1">Click en un usuario para ver sus votos</p>
                 </div>
                 <a href="/api/admin/export"
                   className="flex items-center gap-2 px-4 py-2.5 bg-brand hover:bg-brand-dark rounded-xl text-sm font-medium transition-colors">
@@ -669,35 +680,101 @@ export default function AdminPage() {
                 </a>
               </div>
 
-              <div className="bg-surface-1 border border-surface-3 rounded-2xl overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-surface-3">
-                        <th className="text-left p-3 text-gray-400 font-medium">Nombre</th>
-                        <th className="text-left p-3 text-gray-400 font-medium">WhatsApp</th>
-                        <th className="text-left p-3 text-gray-400 font-medium">Restaurantes</th>
-                        <th className="text-left p-3 text-gray-400 font-medium">Rating Avg</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {stats.topVoters.map((v) => (
-                        <tr key={v.whatsapp} className="border-b border-surface-3/50 hover:bg-surface-2/50">
-                          <td className="p-3 font-medium">{v.nombre}</td>
-                          <td className="p-3 text-gray-400">{v.whatsapp}</td>
-                          <td className="p-3">{v.votes_count}</td>
-                          <td className="p-3 text-gold">{v.avg_rating} ⭐</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {/* Search + Filter bar */}
+              <div className="flex gap-3 mb-4">
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    value={contactSearch}
+                    onChange={(e) => setContactSearch(e.target.value)}
+                    placeholder="Buscar por nombre o WhatsApp..."
+                    className="w-full px-4 py-2.5 pl-10 bg-surface-1 border border-surface-3 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-brand transition-colors"
+                  />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">🔍</span>
                 </div>
-                {stats.topVoters.length === 0 && <p className="text-center text-gray-500 py-8">Aún no hay contactos</p>}
+                <select
+                  value={contactRestaurantFilter}
+                  onChange={(e) => setContactRestaurantFilter(e.target.value)}
+                  className="px-4 py-2.5 bg-surface-1 border border-surface-3 rounded-xl text-sm text-white focus:outline-none focus:border-brand transition-colors appearance-none min-w-[180px]"
+                >
+                  <option value="">Todos los restaurantes</option>
+                  {stats.restaurantStats.map((r) => (
+                    <option key={r.id} value={r.name}>{r.name}</option>
+                  ))}
+                </select>
               </div>
+
+              {/* Filtered voters */}
+              {(() => {
+                const filtered = stats.topVoters.filter((v) => {
+                  const searchMatch = !contactSearch ||
+                    v.nombre.toLowerCase().includes(contactSearch.toLowerCase()) ||
+                    v.whatsapp.includes(contactSearch);
+                  const restaurantMatch = !contactRestaurantFilter ||
+                    v.vote_details.some(d => d.restaurant_name === contactRestaurantFilter);
+                  return searchMatch && restaurantMatch;
+                });
+
+                return (
+                  <div className="bg-surface-1 border border-surface-3 rounded-2xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-surface-3">
+                            <th className="text-left p-3 text-gray-400 font-medium">Nombre</th>
+                            <th className="text-left p-3 text-gray-400 font-medium">WhatsApp</th>
+                            <th className="text-left p-3 text-gray-400 font-medium">Restaurantes</th>
+                            <th className="text-left p-3 text-gray-400 font-medium">Rating Avg</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filtered.map((v) => (
+                            <tr
+                              key={v.whatsapp}
+                              onClick={() => { setSelectedVoter(v); setVoterModalOpen(true); }}
+                              className="border-b border-surface-3/50 hover:bg-surface-2/50 cursor-pointer transition-colors"
+                            >
+                              <td className="p-3 font-medium">{v.nombre}</td>
+                              <td className="p-3 text-gray-400">{v.whatsapp}</td>
+                              <td className="p-3">
+                                <span className="text-xs bg-surface-2 px-2 py-0.5 rounded-full">
+                                  {v.votes_count} {v.votes_count === 1 ? 'restaurante' : 'restaurantes'}
+                                </span>
+                              </td>
+                              <td className="p-3 text-gold font-bold">{v.avg_rating} ⭐</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {filtered.length === 0 && (
+                      <p className="text-center text-gray-500 py-8">
+                        {contactSearch || contactRestaurantFilter ? 'Sin resultados' : 'Aún no hay contactos'}
+                      </p>
+                    )}
+                    <div className="p-3 border-t border-surface-3 text-xs text-gray-500">
+                      {filtered.length} {filtered.length === 1 ? 'contacto' : 'contactos'}
+                      {(contactSearch || contactRestaurantFilter) && ` (filtrado de ${stats.topVoters.length})`}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="mt-4 p-4 bg-surface-2 rounded-xl text-xs text-gray-500">
                 💡 El CSV exporta: Nombre, WhatsApp, Restaurantes Votados, Rating Promedio, Primer y Último Voto.
               </div>
+
+              {/* Voter detail modal */}
+              {selectedVoter && (
+                <VoterModal
+                  isOpen={voterModalOpen}
+                  onClose={() => { setVoterModalOpen(false); setSelectedVoter(null); }}
+                  nombre={selectedVoter.nombre}
+                  whatsapp={selectedVoter.whatsapp}
+                  votes={selectedVoter.vote_details}
+                  avgRating={selectedVoter.avg_rating}
+                />
+              )}
             </motion.div>
           )}
 
