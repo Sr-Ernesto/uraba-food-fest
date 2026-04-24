@@ -16,6 +16,28 @@ import {
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+// Helper: log security event to DB
+async function logSecurityEvent(
+  supabase: ReturnType<typeof getSupabase>,
+  event_type: string,
+  ip: string,
+  details: string,
+  whatsapp?: string,
+  restaurant_id?: number
+) {
+  try {
+    await supabase.from('security_logs').insert({
+      event_type,
+      ip,
+      whatsapp: whatsapp || null,
+      restaurant_id: restaurant_id || null,
+      details,
+    });
+  } catch {
+    // Don't break vote flow if logging fails
+  }
+}
+
 // ============================================================
 // GET: Serve token OR PoW challenge depending on query param
 // GET /api/vote?restaurantId=33&type=challenge  → PoW challenge
@@ -82,6 +104,8 @@ export async function POST(request: NextRequest) {
     // LAYER 1: Block datacenter/hosting IPs
     // ========================================
     if (isDatacenterIP(ip)) {
+      const supabase = getSupabase();
+      await logSecurityEvent(supabase, 'datacenter_blocked', ip, `IP de datacenter bloqueada: ${ip}`);
       return NextResponse.json(
         { error: 'No se permiten votos desde servidores o proxies' },
         { status: 403 }
@@ -93,6 +117,8 @@ export async function POST(request: NextRequest) {
     // ========================================
     const subnetCheck = checkSubnetRateLimit(ip);
     if (!subnetCheck.allowed) {
+      const supabase = getSupabase();
+      await logSecurityEvent(supabase, 'subnet_rate_limit', ip, `Subred ${getSubnet(ip)} excedió límite de votos`);
       return NextResponse.json(
         { error: 'Demasiados votos desde tu zona. Intenta más tarde.' },
         { status: 429 }
@@ -104,14 +130,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Todos los campos son requeridos' }, { status: 400 });
     }
 
+    // Clean WhatsApp early (used in logging)
+    const cleanWhatsapp = whatsapp.replace(/\D/g, '');
+
     // ========================================
     // LAYER 4: Verify HMAC token
     // ========================================
     if (!token) {
+      const supabase = getSupabase();
+      await logSecurityEvent(supabase, 'missing_token', ip, 'Voto sin token de seguridad', cleanWhatsapp, restaurantId);
       return NextResponse.json({ error: 'Token de seguridad requerido' }, { status: 401 });
     }
     const tokenResult = verifyVoteToken(token, restaurantId);
     if (!tokenResult.valid) {
+      const supabase = getSupabase();
+      await logSecurityEvent(supabase, 'invalid_token', ip, `Token inválido: ${tokenResult.error}`, cleanWhatsapp, restaurantId);
       return NextResponse.json(
         { error: `Token inválido: ${tokenResult.error}` },
         { status: 401 }
@@ -122,14 +155,17 @@ export async function POST(request: NextRequest) {
     // LAYER 3: Verify Proof-of-Work
     // ========================================
     if (!challenge || nonce === undefined || nonce === null) {
+      const supabase = getSupabase();
+      await logSecurityEvent(supabase, 'missing_pow', ip, 'Voto sin prueba de trabajo', cleanWhatsapp, restaurantId);
       return NextResponse.json({ error: 'Prueba de trabajo requerida' }, { status: 401 });
     }
     if (!verifyPoW(challenge, nonce)) {
+      const supabase = getSupabase();
+      await logSecurityEvent(supabase, 'invalid_pow', ip, 'Prueba de trabajo inválida o expirada', cleanWhatsapp, restaurantId);
       return NextResponse.json({ error: 'Prueba de trabajo inválida o expirada' }, { status: 401 });
     }
 
-    // Validate WhatsApp
-    const cleanWhatsapp = whatsapp.replace(/\D/g, '');
+    // Validate WhatsApp length
     if (cleanWhatsapp.length < 10) {
       return NextResponse.json({ error: 'Número de WhatsApp inválido' }, { status: 400 });
     }
@@ -162,6 +198,7 @@ export async function POST(request: NextRequest) {
       .gte('voted_at', twentyFourHoursAgo);
 
     if (recentVotes && recentVotes >= 8) {
+      await logSecurityEvent(supabase, 'ip_rate_limit', ip, `${recentVotes} votos en 24h desde esta IP`, cleanWhatsapp, restaurantId);
       return NextResponse.json({
         error: 'Has alcanzado el límite de votos por hoy.',
         code: 'RATE_LIMIT_IP',
@@ -184,6 +221,7 @@ export async function POST(request: NextRequest) {
     const anomalyCheck = checkVoteAnomaly(nombre.trim(), cleanWhatsapp, rating, recentRatings);
 
     if (!anomalyCheck.passed) {
+      await logSecurityEvent(supabase, 'anomaly_detected', ip, `Razones: ${anomalyCheck.reasons.join('; ')}`, cleanWhatsapp, restaurantId);
       return NextResponse.json(
         { error: 'Voto rechazado por actividad sospechosa', reasons: anomalyCheck.reasons },
         { status: 403 }

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Star, UtensilsCrossed, Vote, Download, Edit3, X,
-  BarChart3, TrendingUp, Clock, Award, ChevronRight, Save, LogOut, Image as ImageIcon, Settings, Upload, QrCode
+  BarChart3, TrendingUp, Clock, Award, ChevronRight, Save, LogOut, Image as ImageIcon, Settings, Upload, QrCode, Shield, AlertTriangle
 } from 'lucide-react';
 
 const InstagramIcon = ({ size = 16, className = '' }: { size?: number; className?: string }) => (
@@ -58,7 +58,7 @@ interface Stats {
   }[];
 }
 
-type Tab = 'dashboard' | 'restaurantes' | 'qr' | 'votos' | 'contactos' | 'configuracion';
+type Tab = 'dashboard' | 'restaurantes' | 'qr' | 'seguridad' | 'votos' | 'contactos' | 'configuracion';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -72,6 +72,9 @@ export default function AdminPage() {
   const [settingsForm, setSettingsForm] = useState({ event_name: '', event_tagline: '', logo_url: '' });
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBurger, setUploadingBurger] = useState<number | null>(null);
+  const [securityLogs, setSecurityLogs] = useState<any[]>([]);
+  const [securitySummary, setSecuritySummary] = useState<Record<string, number>>({});
+  const [logFilter, setLogFilter] = useState<string>('');
 
   useEffect(() => {
     fetchStats();
@@ -88,6 +91,11 @@ export default function AdminPage() {
     }).catch(() => {});
   }, []);
 
+  // Fetch security logs when tab changes
+  useEffect(() => {
+    if (tab === 'seguridad') fetchSecurityLogs();
+  }, [tab, logFilter]);
+
   const fetchStats = async () => {
     try {
       const res = await fetch('/api/admin/stats');
@@ -96,6 +104,17 @@ export default function AdminPage() {
       setStats(data);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
+  };
+
+  const fetchSecurityLogs = async () => {
+    try {
+      const params = logFilter ? `?type=${logFilter}` : '';
+      const res = await fetch(`/api/admin/security-logs${params}`);
+      if (res.status === 401) { router.push('/admin/login'); return; }
+      const data = await res.json();
+      setSecurityLogs(data.data || []);
+      setSecuritySummary(data.summary || {});
+    } catch (e) { console.error(e); }
   };
 
   const startEdit = (restaurant: any) => {
@@ -227,6 +246,7 @@ export default function AdminPage() {
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
     { id: 'restaurantes', label: 'Restaurantes', icon: UtensilsCrossed },
     { id: 'qr', label: 'Códigos QR', icon: QrCode },
+    { id: 'seguridad', label: 'Seguridad', icon: Shield },
     { id: 'votos', label: 'Votos', icon: Vote },
     { id: 'contactos', label: 'Contactos', icon: Users },
     { id: 'configuracion', label: 'Configuración', icon: Settings },
@@ -475,6 +495,100 @@ export default function AdminPage() {
                   <p className="text-gray-500">No hay restaurantes todavía</p>
                 </div>
               )}
+            </motion.div>
+          )}
+
+          {/* SEGURIDAD */}
+          {tab === 'seguridad' && (
+            <motion.div key="seguridad" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold">Seguridad</h2>
+                  <p className="text-sm text-gray-400 mt-1">Intentos bloqueados y actividad sospechosa (últimas 24h)</p>
+                </div>
+                <button onClick={fetchSecurityLogs}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-surface-2 hover:bg-surface-3 rounded-xl text-sm transition-colors">
+                  <Shield size={16} /> Actualizar
+                </button>
+              </div>
+
+              {/* Summary cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+                {[
+                  { key: 'datacenter_blocked', label: 'Datacenter', color: 'bg-red-500/20 text-red-400', icon: '🖥️' },
+                  { key: 'ip_rate_limit', label: 'Rate Limit IP', color: 'bg-orange-500/20 text-orange-400', icon: '⏱️' },
+                  { key: 'subnet_rate_limit', label: 'Rate Limit Subred', color: 'bg-yellow-500/20 text-yellow-400', icon: '🌐' },
+                  { key: 'missing_token', label: 'Sin Token', color: 'bg-purple-500/20 text-purple-400', icon: '🔑' },
+                  { key: 'invalid_token', label: 'Token Inválido', color: 'bg-pink-500/20 text-pink-400', icon: '❌' },
+                  { key: 'anomaly_detected', label: 'Anomalía', color: 'bg-red-600/20 text-red-300', icon: '🚨' },
+                ].map((item) => (
+                  <div key={item.key} className={`rounded-xl p-3 border border-surface-3 ${item.color.split(' ')[0]}`}>
+                    <div className="text-lg mb-1">{item.icon}</div>
+                    <div className="text-xl font-bold">{securitySummary[item.key] || 0}</div>
+                    <div className="text-xs text-gray-400">{item.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Filter buttons */}
+              <div className="flex gap-2 mb-4 flex-wrap">
+                <button onClick={() => setLogFilter('')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${!logFilter ? 'bg-brand text-white' : 'bg-surface-2 text-gray-400 hover:text-white'}`}>
+                  Todos
+                </button>
+                {['datacenter_blocked', 'ip_rate_limit', 'subnet_rate_limit', 'missing_token', 'invalid_token', 'anomaly_detected', 'invalid_pow'].map(type => (
+                  <button key={type} onClick={() => setLogFilter(type)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${logFilter === type ? 'bg-brand text-white' : 'bg-surface-2 text-gray-400 hover:text-white'}`}>
+                    {type.replace(/_/g, ' ')}
+                  </button>
+                ))}
+              </div>
+
+              {/* Logs table */}
+              <div className="bg-surface-1 border border-surface-3 rounded-2xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-surface-3">
+                        <th className="text-left p-3 text-gray-400 font-medium">Hora</th>
+                        <th className="text-left p-3 text-gray-400 font-medium">Tipo</th>
+                        <th className="text-left p-3 text-gray-400 font-medium">IP</th>
+                        <th className="text-left p-3 text-gray-400 font-medium">WhatsApp</th>
+                        <th className="text-left p-3 text-gray-400 font-medium">Detalle</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {securityLogs.map((log) => (
+                        <tr key={log.id} className="border-b border-surface-3/50 hover:bg-surface-2/50">
+                          <td className="p-3 text-xs text-gray-500 whitespace-nowrap">
+                            {new Date(log.created_at).toLocaleString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              log.event_type === 'anomaly_detected' ? 'bg-red-500/20 text-red-400' :
+                              log.event_type === 'datacenter_blocked' ? 'bg-orange-500/20 text-orange-400' :
+                              log.event_type.includes('rate_limit') ? 'bg-yellow-500/20 text-yellow-400' :
+                              'bg-purple-500/20 text-purple-400'
+                            }`}>
+                              {log.event_type.replace(/_/g, ' ')}
+                            </span>
+                          </td>
+                          <td className="p-3 font-mono text-xs">{log.ip}</td>
+                          <td className="p-3 text-xs">{log.whatsapp || '—'}</td>
+                          <td className="p-3 text-xs text-gray-400 max-w-xs truncate">{log.details}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {securityLogs.length === 0 && (
+                  <div className="text-center py-12">
+                    <p className="text-3xl mb-2">🛡️</p>
+                    <p className="text-gray-500">Sin eventos de seguridad</p>
+                    <p className="text-xs text-gray-600 mt-1">Todo está tranquilo</p>
+                  </div>
+                )}
+              </div>
             </motion.div>
           )}
 
