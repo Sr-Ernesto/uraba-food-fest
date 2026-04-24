@@ -71,15 +71,17 @@ export default function RestaurantCard({
         name
       )} border border-surface-3 hover:border-brand/50 transition-all duration-300`}
     >
-      {/* Image */}
-      <div className="relative h-40 bg-surface-2 flex items-center justify-center overflow-hidden">
+      {/* Image area — light bg so transparent dark logos are visible */}
+      <div className="relative h-40 bg-white flex items-center justify-center overflow-hidden">
         {imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt={name}
-            fill
-            className="object-cover group-hover:scale-110 transition-transform duration-500"
-          />
+          <div className="relative w-full h-full p-3">
+            <Image
+              src={imageUrl}
+              alt={name}
+              fill
+              className="object-contain p-4 group-hover:scale-105 transition-transform duration-500"
+            />
+          </div>
         ) : (
           <motion.span className="text-6xl select-none" whileHover={{ scale: 1.2, rotate: 10 }}>
             {getEmoji(name)}
@@ -105,14 +107,12 @@ export default function RestaurantCard({
           </button>
         )}
 
-        {/* Hover overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
-          <span className="text-sm font-bold text-white">Toca para calificar</span>
-        </div>
+        {/* Subtle gradient at bottom for name preview on hover */}
+        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
       </div>
 
       {/* Content */}
-      <div className="p-4">
+      <div className="p-4 bg-surface-1">
         <h3 className="font-bold text-base mb-1 group-hover:text-brand transition-colors line-clamp-1">
           {name}
         </h3>

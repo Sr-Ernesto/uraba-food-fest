@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Share2, Star, MapPin, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Share2, Star, ExternalLink } from 'lucide-react';
 
 const InstagramIcon = ({ size = 16 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -95,21 +95,33 @@ export default function RestaurantPage({ params }: { params: Promise<{ id: strin
 
   return (
     <main className="min-h-screen bg-black text-white">
-      {/* ── Hero Photo ── */}
-      <div className="relative h-[50vh] min-h-[360px] max-h-[500px] overflow-hidden">
+      {/* ── Hero Photo / Logo ── */}
+      <div className="relative h-[45vh] min-h-[320px] max-h-[460px] overflow-hidden">
         {restaurant.image_url ? (
           <>
-            <Image
-              src={restaurant.image_url}
-              alt={restaurant.name}
-              fill
-              priority
-              className="object-cover"
-              sizes="100vw"
-            />
-            {/* Gradient overlays */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/40 to-transparent" />
+            {/* White background for transparent dark logos */}
+            <div className="absolute inset-0 bg-white" />
+            <div className="absolute inset-0 flex items-center justify-center p-8">
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.5, ease: 'easeOut' }}
+                className="relative w-full h-full"
+              >
+                <Image
+                  src={restaurant.image_url}
+                  alt={restaurant.name}
+                  fill
+                  priority
+                  className="object-contain"
+                  sizes="100vw"
+                />
+              </motion.div>
+            </div>
+            {/* Bottom gradient to dark for text readability */}
+            <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black to-transparent" />
+            {/* Top bar gradient for nav buttons */}
+            <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/30 to-transparent" />
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-brand/20 via-surface to-gold/10">
@@ -128,19 +140,19 @@ export default function RestaurantPage({ params }: { params: Promise<{ id: strin
         <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-10">
           <Link
             href="/"
-            className="p-2.5 bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all hover:scale-110"
+            className="p-2.5 bg-black/30 backdrop-blur-md rounded-full border border-white/20 hover:bg-black/50 transition-all hover:scale-110"
           >
             <ArrowLeft size={20} className="text-white" />
           </Link>
           <button
             onClick={handleShare}
-            className="p-2.5 bg-white/10 backdrop-blur-md rounded-full border border-white/20 hover:bg-white/20 transition-all hover:scale-110"
+            className="p-2.5 bg-black/30 backdrop-blur-md rounded-full border border-white/20 hover:bg-black/50 transition-all hover:scale-110"
           >
             <Share2 size={20} className="text-white" />
           </button>
         </div>
 
-        {/* Restaurant name overlaid on photo */}
+        {/* Restaurant name overlaid on photo bottom */}
         <div className="absolute bottom-0 left-0 right-0 p-6 z-10">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
