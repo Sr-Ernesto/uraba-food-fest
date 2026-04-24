@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Star, UtensilsCrossed, Vote, Download, Edit3, X,
-  BarChart3, TrendingUp, Clock, Award, ChevronRight, Save, LogOut, Image as ImageIcon, Settings, Upload
+  BarChart3, TrendingUp, Clock, Award, ChevronRight, Save, LogOut, Image as ImageIcon, Settings, Upload, QrCode
 } from 'lucide-react';
 
 const InstagramIcon = ({ size = 16, className = '' }: { size?: number; className?: string }) => (
@@ -15,6 +15,7 @@ const InstagramIcon = ({ size = 16, className = '' }: { size?: number; className
   </svg>
 );
 import ImageDropZone from '@/components/ImageDropZone';
+import QRCard from '@/components/QRCard';
 import StatsCard from '@/components/StatsCard';
 import BarChart from '@/components/BarChart';
 import { useRouter } from 'next/navigation';
@@ -57,7 +58,7 @@ interface Stats {
   }[];
 }
 
-type Tab = 'dashboard' | 'restaurantes' | 'votos' | 'contactos' | 'configuracion';
+type Tab = 'dashboard' | 'restaurantes' | 'qr' | 'votos' | 'contactos' | 'configuracion';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -225,6 +226,7 @@ export default function AdminPage() {
   const tabs: { id: Tab; label: string; icon: any }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
     { id: 'restaurantes', label: 'Restaurantes', icon: UtensilsCrossed },
+    { id: 'qr', label: 'Códigos QR', icon: QrCode },
     { id: 'votos', label: 'Votos', icon: Vote },
     { id: 'contactos', label: 'Contactos', icon: Users },
     { id: 'configuracion', label: 'Configuración', icon: Settings },
@@ -417,6 +419,62 @@ export default function AdminPage() {
                   </motion.div>
                 ))}
               </div>
+            </motion.div>
+          )}
+
+          {/* CODIGOS QR */}
+          {tab === 'qr' && (
+            <motion.div key="qr" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold">Códigos QR</h2>
+                  <p className="text-sm text-gray-400 mt-1">Genera y descarga los QR de cada restaurante</p>
+                </div>
+                <button
+                  onClick={async () => {
+                    // Download all QR cards sequentially
+                    for (const r of stats.restaurantStats) {
+                      const btn = document.querySelector(`[data-qr-download="${r.slug}"]`) as HTMLButtonElement;
+                      if (btn) { btn.click(); await new Promise(res => setTimeout(res, 500)); }
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-brand hover:bg-brand-dark rounded-xl text-sm font-medium transition-colors"
+                >
+                  <Download size={16} /> Descargar Todos
+                </button>
+              </div>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {stats.restaurantStats.map((r, i) => {
+                  const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+                  const qrUrl = `${baseUrl}/restaurante/${r.slug}`;
+                  return (
+                    <motion.div
+                      key={r.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.03 }}
+                    >
+                      <QRCard
+                        name={r.name}
+                        slug={r.slug}
+                        imageUrl={r.image_url}
+                        instagram={r.instagram}
+                        qrUrl={qrUrl}
+                        eventName={settings.event_name || undefined}
+                        logoUrl={settings.logo_url || undefined}
+                      />
+                    </motion.div>
+                  );
+                })}
+              </div>
+
+              {stats.restaurantStats.length === 0 && (
+                <div className="text-center py-16">
+                  <p className="text-4xl mb-3">📱</p>
+                  <p className="text-gray-500">No hay restaurantes todavía</p>
+                </div>
+              )}
             </motion.div>
           )}
 
