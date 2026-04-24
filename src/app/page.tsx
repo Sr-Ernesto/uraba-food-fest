@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { UtensilsCrossed, ChevronUp } from 'lucide-react';
-import RestaurantCard from '@/components/RestaurantCard';
+import RestaurantCard, { container } from '@/components/RestaurantCard';
 import VoteModal from '@/components/VoteModal';
 import Image from 'next/image';
 
@@ -138,7 +138,12 @@ export default function Home() {
 
       {/* Restaurant Grid */}
       <section className="max-w-6xl mx-auto px-4 pb-20">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <motion.div
+          variants={container}
+          initial="hidden"
+          animate="show"
+          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"
+        >
           {shuffledRestaurants.map((restaurant, index) => (
             <RestaurantCard
               key={restaurant.id}
@@ -152,7 +157,7 @@ export default function Home() {
               onClick={() => handleSelect(restaurant)}
             />
           ))}
-        </div>
+        </motion.div>
 
         <motion.div
           initial={{ opacity: 0 }}

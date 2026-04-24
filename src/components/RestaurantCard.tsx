@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import { Star } from 'lucide-react';
 import Image from 'next/image';
 
-// Custom Instagram icon
 const InstagramIcon = ({ size = 16 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
@@ -43,6 +42,25 @@ function getEmoji(name: string): string {
   return emojis[name.charCodeAt(0) % emojis.length];
 }
 
+// Staggered container
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.06, delayChildren: 0.1 },
+  },
+};
+
+const item = {
+  hidden: { opacity: 0, y: 30, scale: 0.95 },
+  show: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { type: 'spring' as const, damping: 20, stiffness: 200 },
+  },
+};
+
 export default function RestaurantCard({
   id,
   name,
@@ -62,38 +80,55 @@ export default function RestaurantCard({
   return (
     <motion.button
       onClick={onClick}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05, duration: 0.4 }}
-      whileHover={{ scale: 1.03, y: -4 }}
-      whileTap={{ scale: 0.98 }}
+      variants={item}
+      whileHover={{
+        scale: 1.04,
+        y: -6,
+        transition: { type: 'spring', damping: 15, stiffness: 300 },
+      }}
+      whileTap={{ scale: 0.97, transition: { duration: 0.1 } }}
       className={`group relative w-full text-left rounded-2xl overflow-hidden bg-gradient-to-br ${getGradient(
         name
-      )} border border-surface-3 hover:border-brand/50 transition-all duration-300`}
+      )} border border-surface-3 hover:border-brand/50 transition-colors duration-300`}
     >
-      {/* Image area — light bg so transparent dark logos are visible */}
+      {/* Image area — white bg so transparent dark logos are visible */}
       <div className="relative h-40 bg-white flex items-center justify-center overflow-hidden">
         {imageUrl ? (
-          <div className="relative w-full h-full p-3">
+          <motion.div
+            className="relative w-full h-full"
+            initial={{ opacity: 0, scale: 1.1 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: index * 0.05 + 0.2, duration: 0.5, ease: 'easeOut' }}
+          >
             <Image
               src={imageUrl}
               alt={name}
               fill
               className="object-contain p-4 group-hover:scale-105 transition-transform duration-500"
             />
-          </div>
+          </motion.div>
         ) : (
-          <motion.span className="text-6xl select-none" whileHover={{ scale: 1.2, rotate: 10 }}>
+          <motion.span
+            initial={{ scale: 0, rotate: -15 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring' as const, damping: 12, delay: index * 0.05 + 0.2 }}
+            className="text-6xl select-none"
+          >
             {getEmoji(name)}
           </motion.span>
         )}
 
         {/* User rating badge */}
         {userRating && (
-          <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 bg-black/60 backdrop-blur-sm rounded-full text-xs">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring' as const, damping: 10, delay: index * 0.05 + 0.4 }}
+            className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 bg-black/60 backdrop-blur-sm rounded-full text-xs"
+          >
             <Star size={12} className="fill-gold text-gold" />
             <span className="text-gold font-bold">{userRating}</span>
-          </div>
+          </motion.div>
         )}
 
         {/* Instagram button */}
@@ -107,7 +142,7 @@ export default function RestaurantCard({
           </button>
         )}
 
-        {/* Subtle gradient at bottom for name preview on hover */}
+        {/* Hover overlay */}
         <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
       </div>
 
@@ -130,3 +165,6 @@ export default function RestaurantCard({
     </motion.button>
   );
 }
+
+// Export the container variant for the parent grid
+export { container };
