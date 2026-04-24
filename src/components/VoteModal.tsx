@@ -86,6 +86,7 @@ export default function VoteModal({ isOpen, onClose, restaurant }: VoteModalProp
   const [nombre, setNombre] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [fingerprint, setFingerprint] = useState('');
+  const [opinion, setOpinion] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showConfetti, setShowConfetti] = useState(false);
@@ -178,6 +179,7 @@ export default function VoteModal({ isOpen, onClose, restaurant }: VoteModalProp
           token,
           challenge,
           nonce,
+          opinion,
         }),
       });
 
@@ -341,6 +343,21 @@ export default function VoteModal({ isOpen, onClose, restaurant }: VoteModalProp
                           <p className="text-xs text-gray-500 mt-1">
                             10 dígitos · Lo usamos para el próximo festival 🍟
                           </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                            Opinión <span className="text-gray-500">(opcional)</span>
+                          </label>
+                          <textarea
+                            value={opinion}
+                            onChange={(e) => setOpinion(e.target.value.slice(0, 500))}
+                            rows={3}
+                            maxLength={500}
+                            placeholder="¿Qué te gustó? ¿Qué mejorarías?"
+                            className="w-full px-4 py-3 bg-surface-2 border border-surface-3 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-brand transition-colors resize-none"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">{opinion.length}/500</p>
                         </div>
 
                         {error && (

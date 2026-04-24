@@ -57,7 +57,7 @@ export async function GET() {
     // All votes for recent and charts
     const { data: allVotes } = await supabase
       .from('votes')
-      .select('id, nombre, whatsapp, rating, voted_at, restaurant_id')
+      .select('id, nombre, whatsapp, rating, voted_at, restaurant_id, opinion')
       .order('voted_at', { ascending: false });
 
     // Recent votes (last 50)
@@ -70,6 +70,7 @@ export async function GET() {
         rating: v.rating,
         voted_at: v.voted_at,
         restaurant_name: restaurant?.name || 'Desconocido',
+        opinion: v.opinion || null,
       };
     });
 

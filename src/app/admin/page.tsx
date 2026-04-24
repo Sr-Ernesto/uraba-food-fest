@@ -49,6 +49,7 @@ interface Stats {
     rating: number;
     voted_at: string;
     restaurant_name: string;
+    opinion: string | null;
   }[];
   topVoters: {
     nombre: string;
@@ -626,6 +627,7 @@ export default function AdminPage() {
                         <th className="text-left p-3 text-gray-400 font-medium">WhatsApp</th>
                         <th className="text-left p-3 text-gray-400 font-medium">Restaurante</th>
                         <th className="text-left p-3 text-gray-400 font-medium">Rating</th>
+                        <th className="text-left p-3 text-gray-400 font-medium">Opinión</th>
                         <th className="text-left p-3 text-gray-400 font-medium">Fecha</th>
                       </tr>
                     </thead>
@@ -636,7 +638,14 @@ export default function AdminPage() {
                           <td className="p-3 text-gray-400">{v.whatsapp}</td>
                           <td className="p-3">{v.restaurant_name}</td>
                           <td className="p-3 text-gold font-bold">{v.rating} ⭐</td>
-                          <td className="p-3 text-gray-500 text-xs">{new Date(v.voted_at).toLocaleString('es-CO')}</td>
+                          <td className="p-3 text-xs text-gray-300 max-w-[200px]">
+                            {v.opinion ? (
+                              <span className="italic">"{v.opinion}"</span>
+                            ) : (
+                              <span className="text-gray-600">—</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-gray-500 text-xs whitespace-nowrap">{new Date(v.voted_at).toLocaleString('es-CO')}</td>
                         </tr>
                       ))}
                     </tbody>

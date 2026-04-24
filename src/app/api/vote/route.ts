@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { nombre, whatsapp, fingerprint, restaurantId, rating, token, challenge, nonce } = body;
+    const { nombre, whatsapp, fingerprint, restaurantId, rating, token, challenge, nonce, opinion } = body;
 
   // Get real client IP (prioritize CF-Connecting-IP for Cloudflare setups)
   const ip = request.headers.get('cf-connecting-ip')       // Cloudflare: true client IP
@@ -229,6 +229,7 @@ export async function POST(request: NextRequest) {
         fingerprint,
         restaurant_id: restaurantId,
         rating,
+        opinion: opinion?.trim() || null,
       })
       .select()
       .single();
