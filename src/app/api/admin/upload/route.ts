@@ -23,9 +23,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Solo se permiten imágenes JPG, PNG o WebP' }, { status: 400 });
     }
 
-    // Validate size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      return NextResponse.json({ error: 'Máximo 5MB por imagen' }, { status: 400 });
+    // Validate size (max 20MB — fotos de celular pesan más)
+    if (file.size > 20 * 1024 * 1024) {
+      return NextResponse.json({ error: 'Máximo 20MB por imagen' }, { status: 400 });
     }
 
     const bytes = await file.arrayBuffer();

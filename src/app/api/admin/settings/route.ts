@@ -53,3 +53,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Error del servidor' }, { status: 500 });
   }
 }
+
+// Alias PUT → same as POST (admin sends PUT)
+export { POST as PUT };

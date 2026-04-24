@@ -66,3 +66,6 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Error del servidor' }, { status: 500 });
   }
 }
+
+// Alias PUT → same as PATCH (admin sends PUT)
+export { PATCH as PUT };
