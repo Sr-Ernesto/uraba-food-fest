@@ -131,6 +131,41 @@ export default function VoteModal({ isOpen, onClose, restaurant }: VoteModalProp
     setError('');
 
     try {
+      // ── ANTI-BOT: Fetch token + PoW challenge ──
+      const challengeRes = await fetch(`/api/vote?restaurantId=${restaurant.id}`);
+      if (!challengeRes.ok) {
+        const err = await challengeRes.json();
+        setError(err.error || 'Error de seguridad');
+        setLoading(false);
+        return;
+      }
+      const { data: sec } = await challengeRes.json();
+      const { token, challenge, difficulty } = sec;
+
+      // ── ANTI-BOT: Solve PoW (find nonce where SHA-256 starts with N zeros) ──
+      let nonce = 0;
+      const prefix = '0'.repeat(difficulty);
+      const encoder = new TextEncoder();
+      const startTime = performance.now();
+
+      while (true) {
+        const data = encoder.encode(`${challenge}:${nonce}`);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+        if (hashHex.startsWith(prefix)) break;
+        nonce++;
+
+        // Safety: don't spin forever (>5s = something wrong)
+        if (performance.now() - startTime > 5000) {
+          setError('Error de verificación. Intenta de nuevo.');
+          setLoading(false);
+          return;
+        }
+      }
+
+      // ── Submit vote with token + proof ──
       const res = await fetch('/api/vote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -140,6 +175,9 @@ export default function VoteModal({ isOpen, onClose, restaurant }: VoteModalProp
           fingerprint,
           restaurantId: restaurant.id,
           rating,
+          token,
+          challenge,
+          nonce,
         }),
       });
 
