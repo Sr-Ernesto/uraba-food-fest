@@ -3,8 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/db';
 import {
   isDatacenterIP,
-  getSubnet,
-  checkSubnetRateLimit,
   generateChallenge,
   verifyPoW,
   generateVoteToken,
@@ -113,17 +111,10 @@ export async function POST(request: NextRequest) {
     }
 
     // ========================================
-    // LAYER 2: Subnet rate limiting
+    // LAYER 2: Subnet rate limiting — DISABLED for event
+    // All attendees share the same WiFi/subnet, so this blocks legit votes.
     // ========================================
-    const subnetCheck = checkSubnetRateLimit(ip);
-    if (!subnetCheck.allowed) {
-      const supabase = getSupabase();
-      await logSecurityEvent(supabase, 'subnet_rate_limit', ip, `Subred ${getSubnet(ip)} excedió límite de votos`);
-      return NextResponse.json(
-        { error: 'Demasiados votos desde tu zona. Intenta más tarde.' },
-        { status: 429 }
-      );
-    }
+    // Subnet check removed — per-IP rate limit (8/24h) is sufficient.
 
     // Validate required fields
     if (!nombre || !whatsapp || !fingerprint || !restaurantId || !rating) {

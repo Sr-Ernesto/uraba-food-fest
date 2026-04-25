@@ -197,7 +197,7 @@ export interface AnomalyCheck {
 
 // Suspicious name patterns (keyboard smashing, test names, too short)
 const SUSPICIOUS_NAME_PATTERNS = [
-  /^[a-z]{1,3}$/i,                    // Too short (1-3 chars)
+  /^[a-z]{1,2}$/i,                     // Too short (1-2 chars — "Ana", "Eva", "Ian" are 3 chars = valid)
   /^(test|admin|bot|prueba)$/i,       // Obvious test names
   /([a-z])\1{4,}/i,                   // Repeated chars (aaaaaa)
   /^[asdfghjkl]{4,}$/i,              // Keyboard smashing (asdf, adfadfa)
