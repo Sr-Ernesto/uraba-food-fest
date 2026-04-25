@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/db';
 import {
-  isDatacenterIP,
   generateChallenge,
   verifyPoW,
   generateVoteToken,
@@ -57,11 +56,6 @@ export async function GET(request: NextRequest) {
       || request.headers.get('x-real-ip')
       || 'unknown';
 
-    // Layer 1: Block datacenter IPs on token/challenge requests too
-    if (isDatacenterIP(ip)) {
-      return NextResponse.json({ error: 'Acceso no permitido' }, { status: 403 });
-    }
-
     const result: Record<string, unknown> = {};
 
     if (type === 'token' || type === 'both') {
@@ -99,17 +93,10 @@ export async function POST(request: NextRequest) {
     || 'unknown';
 
     // ========================================
-    // LAYER 1: Block datacenter/hosting IPs
-    // ========================================
-    if (isDatacenterIP(ip)) {
-      const supabase = getSupabase();
-      await logSecurityEvent(supabase, 'datacenter_blocked', ip, `IP de datacenter bloqueada: ${ip}`);
-      return NextResponse.json(
-        { error: 'No se permiten votos desde servidores o proxies' },
-        { status: 403 }
-      );
-    }
-
+    // LAYER 1: Datacenter IP blocking — DISABLED for event
+    // Colombian residential ISPs share ranges with datacenters,
+    // so this was blocking legitimate voters. Re-enable with
+    // precise ranges based on actual attack logs after the event.
     // ========================================
     // LAYER 2: Subnet rate limiting — DISABLED for event
     // All attendees share the same WiFi/subnet, so this blocks legit votes.
