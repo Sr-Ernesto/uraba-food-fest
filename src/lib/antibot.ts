@@ -18,7 +18,23 @@ const DATACENTER_PREFIXES: string[] = [
   '185.220.101.', '185.220.100.',  // Tor exit nodes common range
 ];
 
+// Whitelist: never block these IP ranges (private networks, Tailscale, known admin IPs)
+const WHITELIST_PREFIXES = [
+  '10.',         // Private class A
+  '172.16.', '172.17.', '172.18.', '172.19.',
+  '172.20.', '172.21.', '172.22.', '172.23.',
+  '172.24.', '172.25.', '172.26.', '172.27.',
+  '172.28.', '172.29.', '172.30.', '172.31.', // Private class B
+  '192.168.',    // Private class C
+  '100.',        // Tailscale / CGNAT
+  '127.',        // Localhost
+];
+
 export function isDatacenterIP(ip: string): boolean {
+  // Whitelist known-safe ranges first
+  for (const prefix of WHITELIST_PREFIXES) {
+    if (ip.startsWith(prefix)) return false;
+  }
   for (const prefix of DATACENTER_PREFIXES) {
     if (ip.startsWith(prefix)) return true;
   }

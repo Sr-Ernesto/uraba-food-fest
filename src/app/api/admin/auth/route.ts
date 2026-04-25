@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
   // Block datacenter IPs from admin access
   if (isDatacenterIP(ip)) {
-    return NextResponse.json({ error: 'Acceso no permitido' }, { status: 403 });
+    return NextResponse.json({ error: `Acceso no permitido (IP: ${ip})` }, { status: 403 });
   }
 
   // Check if locked out
