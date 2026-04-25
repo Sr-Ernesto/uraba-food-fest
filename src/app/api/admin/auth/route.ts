@@ -1,6 +1,5 @@
 // src/app/api/admin/auth/route.ts — Admin auth with brute-force protection
 import { NextRequest, NextResponse } from 'next/server';
-import { isDatacenterIP } from '@/lib/antibot';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -20,11 +19,6 @@ function getClientIP(request: NextRequest): string {
 
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request);
-
-  // Block datacenter IPs from admin access
-  if (isDatacenterIP(ip)) {
-    return NextResponse.json({ error: `Acceso no permitido (IP: ${ip})` }, { status: 403 });
-  }
 
   // Check if locked out
   const entry = loginAttempts.get(ip);
