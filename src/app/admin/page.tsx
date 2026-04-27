@@ -77,7 +77,7 @@ export default function AdminPage() {
   const [editForm, setEditForm] = useState({ name: '', description: '', instagram: '', image_url: '' });
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<Record<string, string>>({});
-  const [settingsForm, setSettingsForm] = useState({ event_name: '', event_tagline: '', logo_url: '' });
+  const [settingsForm, setSettingsForm] = useState({ event_name: '', event_tagline: '', logo_url: '', voting_closed: '' });
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBurger, setUploadingBurger] = useState<number | null>(null);
   const [securityLogs, setSecurityLogs] = useState<any[]>([]);
@@ -98,6 +98,7 @@ export default function AdminPage() {
           event_name: data.data.event_name || '',
           event_tagline: data.data.event_tagline || '',
           logo_url: data.data.logo_url || '',
+          voting_closed: data.data.voting_closed || '',
         });
       }
     }).catch(() => {});
@@ -822,6 +823,45 @@ export default function AdminPage() {
                   >
                     <Save size={14} /> {saving ? 'Guardando...' : 'Guardar'}
                   </button>
+                </div>
+
+                {/* Voting control */}
+                <div className="bg-surface-1 border border-surface-3 rounded-2xl p-5">
+                  <h3 className="text-sm font-semibold text-gray-300 mb-3">Control de Votaciones</h3>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-400">Estado de las votaciones</p>
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        {settingsForm.voting_closed === 'true'
+                          ? '🔒 Votaciones cerradas — los usuarios ven pantalla de cierre'
+                          : '✅ Votaciones abiertas — los usuarios pueden votar'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        const newValue = settingsForm.voting_closed === 'true' ? '' : 'true';
+                        setSettingsForm({ ...settingsForm, voting_closed: newValue });
+                        setSaving(true);
+                        try {
+                          await fetch('/api/admin/settings', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ voting_closed: newValue }),
+                          });
+                          setSettings({ ...settings, voting_closed: newValue });
+                        } catch (e) { console.error(e); }
+                        finally { setSaving(false); }
+                      }}
+                      disabled={saving}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                        settingsForm.voting_closed === 'true'
+                          ? 'bg-green-600 hover:bg-green-700 text-white'
+                          : 'bg-red-600 hover:bg-red-700 text-white'
+                      }`}
+                    >
+                      {settingsForm.voting_closed === 'true' ? '🔓 Abrir votaciones' : '🔒 Cerrar votaciones'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>

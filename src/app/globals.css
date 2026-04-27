@@ -88,3 +88,29 @@ input:focus {
 * {
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Voting closed — shimmer on gradient text */
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.gradient-text-shimmer {
+  background: linear-gradient(90deg, #FF6B35, #FFD700, #FF8F66, #FFD700, #FF6B35);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 3s linear infinite;
+}
+
+/* Voting closed — pulsing glow ring */
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.4); }
+  70% { box-shadow: 0 0 0 20px rgba(255, 107, 53, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 107, 53, 0); }
+}
+
+.pulse-glow {
+  animation: pulse-ring 2s ease-out infinite;
+}

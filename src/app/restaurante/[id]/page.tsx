@@ -14,6 +14,7 @@ const InstagramIcon = ({ size = 16 }: { size?: number }) => (
 import Image from 'next/image';
 import Link from 'next/link';
 import VoteModal from '@/components/VoteModal';
+import VotingClosed from '@/components/VotingClosed';
 
 
 interface Restaurant {
@@ -32,15 +33,24 @@ export default function RestaurantPage({ params }: { params: Promise<{ id: strin
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [userRating, setUserRating] = useState<number | null>(null);
+  const [votingClosed, setVotingClosed] = useState(false);
+  const [eventSettings, setEventSettings] = useState<{ logo_url?: string; event_name?: string }>({});
 
   useEffect(() => {
-    fetch(`/api/restaurants/${id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.data) {
-          setRestaurant(data.data);
-          setTimeout(() => setModalOpen(true), 800);
+    // Check voting status + fetch restaurant
+    Promise.all([
+      fetch(`/api/restaurants/${id}`).then((r) => r.json()),
+      fetch('/api/settings').then((r) => r.json()),
+    ])
+      .then(([restData, settingsData]) => {
+        if (restData.data) {
+          setRestaurant(restData.data);
+          if (settingsData.data?.voting_closed !== 'true') {
+            setTimeout(() => setModalOpen(true), 800);
+          }
         }
+        if (settingsData.data?.voting_closed === 'true') setVotingClosed(true);
+        setEventSettings(settingsData.data || {});
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -78,6 +88,11 @@ export default function RestaurantPage({ params }: { params: Promise<{ id: strin
         </motion.div>
       </div>
     );
+  }
+
+  // Voting closed screen
+  if (votingClosed) {
+    return <VotingClosed settings={eventSettings} />;
   }
 
   if (!restaurant) {

@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { UtensilsCrossed, ChevronUp } from 'lucide-react';
 import RestaurantCard, { container } from '@/components/RestaurantCard';
 import VoteModal from '@/components/VoteModal';
+import VotingClosed from '@/components/VotingClosed';
 import Image from 'next/image';
 
 
@@ -22,6 +23,7 @@ interface Settings {
   logo_url?: string;
   event_name?: string;
   event_tagline?: string;
+  voting_closed?: string;
 }
 
 export default function Home() {
@@ -93,6 +95,11 @@ export default function Home() {
         </motion.div>
       </div>
     );
+  }
+
+  // Voting closed screen
+  if (settings.voting_closed === 'true') {
+    return <VotingClosed settings={settings} />;
   }
 
   return (

@@ -83,6 +83,21 @@ export async function GET(request: NextRequest) {
 // ============================================================
 export async function POST(request: NextRequest) {
   try {
+    // Check if voting is closed
+    const supabaseCheck = getSupabase();
+    const { data: closedSetting } = await supabaseCheck
+      .from('settings')
+      .select('value')
+      .eq('key', 'voting_closed')
+      .single();
+
+    if (closedSetting?.value === 'true') {
+      return NextResponse.json(
+        { error: 'Las votaciones están cerradas', code: 'VOTING_CLOSED' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { nombre, whatsapp, fingerprint, restaurantId, rating, token, challenge, nonce, opinion } = body;
 
